@@ -85,7 +85,7 @@ INSTRUCTIONS = f"""
 SYSTEM:
 
 You are a Formula One Race Engineer, supporting a player during an F1 game session.  
-Your role is to **interpret telemetry data** and **answer the player's questions** clearly, concisely, and in racing context.  
+Your role is to **interpret telemetry data** and **answer the player's questions** clearly, concisely, in racing context, **but in a very brief way to minimize distractions**.  
 
 OBJECTIVE:
 - Help the player understand telemetry metrics (tyre wear, temperatures, fuel load, ERS deployment, brake balance, wing settings, etc.).
@@ -94,7 +94,7 @@ OBJECTIVE:
 - Provide tactical advice (when to pit, how to save ERS, tyre compound choices).
 
 STYLE & TONE:
-- Speak like a calm, professional race engineer: short, precise, supportive.
+- Speak like a calm, professional race engineer: **short**, precise, supportive.
 - Avoid overwhelming the player with raw data — summarize and highlight only the most relevant points.
 - Always connect telemetry to **driver feel and performance outcome** (e.g. “front-left overheating is why you feel understeer in fast corners”).
 
@@ -332,6 +332,15 @@ class RealtimeClient:
 
     Possible events: https://platform.openai.com/docs/api-reference/realtime-client-events
     """
+    def _on_release(self, key):
+        """Handle key release events"""
+        try:
+            if hasattr(key, 'char') and key.char == 'a':
+                self.is_recording = False
+                logger.info("Recording stopped")
+        except AttributeError:
+            pass
+
     def __init__(self, instructions, voice="alloy"):
         # WebSocket Configuration
         self.url = "wss://api.openai.com/v1/realtime"  # WebSocket URL
@@ -339,11 +348,20 @@ class RealtimeClient:
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.ws = None
         self.audio_handler = AudioHandler()
+        self.is_recording = False
+        self.should_record = False
+        self.recording_task = None
+        self.should_quit = False
         
         # SSL Configuration (skipping certificate verification)
         self.ssl_context = ssl.create_default_context()
         self.ssl_context.check_hostname = False
         self.ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Import keyboard module at class level
+        from pynput import keyboard
+        self.keyboard = keyboard
+        self.key_listener = None  # Will be initialized in run()
         
         self.audio_buffer = b''  # Buffer for streaming audio responses
         self.instructions = instructions
@@ -483,22 +501,13 @@ class RealtimeClient:
 
     async def send_audio(self):
         """
-        Record and send audio using manual turn detection.
+        Record and send audio using push-to-talk (hold 'a' to record).
         """
-        logger.info("Starting audio recording. Press Enter to stop recording.")
+        logger.info("Recording... (Release 'a' to stop)")
         self.audio_handler.start_recording()
         
-        stop_recording = False
-
-        async def wait_for_enter():
-            nonlocal stop_recording
-            await asyncio.get_event_loop().run_in_executor(None, input)
-            stop_recording = True
-
         try:
-            # Start the input listener
-            enter_task = asyncio.create_task(wait_for_enter())
-            while not stop_recording:
+            while self.is_recording:  # Keep recording while 'a' is held
                 chunk = self.audio_handler.record_chunk()
                 if chunk:
                     # Encode and send audio chunk
@@ -510,9 +519,6 @@ class RealtimeClient:
                     await asyncio.sleep(0.01)
                 else:
                     break
-
-            # Wait for enter_task to complete
-            await enter_task
 
         except Exception as e:
             logger.error(f"Error during audio recording: {e}")
@@ -531,6 +537,20 @@ class RealtimeClient:
         await self.send_event({"type": "response.create"})
         logger.debug("Sent response.create after committing audio buffer")
 
+    def _on_key_press(self, key):
+        """Handle key press events"""
+        try:
+            if hasattr(key, 'char'):
+                if key.char == 'a' and not self.is_recording:
+                    self.is_recording = True
+                    logger.info("Recording started (release 'a' to stop)")
+                    self.should_record = True
+                elif key.char == 'q':
+                    logger.info("Quit command received")
+                    self.should_quit = True
+        except AttributeError:
+            pass
+
     async def run(self):
         """
         Main loop to handle user input and interact with the WebSocket server.
@@ -540,38 +560,50 @@ class RealtimeClient:
         # Continuously listen to events in the background
         receive_task = asyncio.create_task(self.receive_events())
 
+        print("\nControls:")
+        print("- Press and hold 'a' to record audio")
+        print("- Press 'q' to quit\n")
+
+        # Update keyboard listener to use the new handler
+        self.key_listener = self.keyboard.Listener(
+            on_press=self._on_key_press,
+            on_release=self._on_release
+        )
+        self.key_listener.start()
+
         try:
-            while True:
-                # Get user command input
-                command = await asyncio.get_event_loop().run_in_executor(
-                    None, input, KEYBOARD_COMMANDS
-                )
-                if command == 'q':
-                    logger.info("Quit command received")
-                    break
-                elif command == 't':
-                    # Get text input from user
-                    text = await asyncio.get_event_loop().run_in_executor(
-                        None, input, "Enter TEXT message: "
-                    )
-                    await self.send_text(text)
-                elif command == 'a':
-                    # Record and send audio
-                    await self.send_audio()
+            while not self.should_quit:
+                # Check if we should start recording
+                if self.should_record and not self.recording_task:
+                    self.recording_task = asyncio.create_task(self.send_audio())
+                    self.should_record = False
+                
+                # Check if recording is done
+                if self.recording_task and self.recording_task.done():
+                    self.recording_task = None
+                    
                 await asyncio.sleep(0.1)
+                
         except Exception as e:
-            logger.error(f"An error occurred: {e}")
+            logger.error(f"Error in main loop: {e}")
         finally:
-            receive_task.cancel()
+            if receive_task:
+                receive_task.cancel()
             await self.cleanup()
 
     async def cleanup(self):
         """
-        Clean up resources by closing the WebSocket and audio handler.
+        Clean up resources by closing the WebSocket, keyboard listener, and audio handler.
         """
-        self.audio_handler.cleanup()
-        if self.ws:
-            await self.ws.close()
+        try:
+            if self.key_listener:
+                self.key_listener.stop()
+                self.key_listener = None
+            self.audio_handler.cleanup()
+            if self.ws:
+                await self.ws.close()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
 async def main():
 

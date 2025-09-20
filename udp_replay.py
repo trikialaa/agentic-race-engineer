@@ -33,7 +33,7 @@ with open(filename, "rb") as f:
             sock.sendto(packet, (UDP_IP, UDP_PORT))
 
             # F1 sends ~20Hz, so sleep a bit
-            time.sleep(1/20.0)
+            time.sleep(1/120.0)
 
     except KeyboardInterrupt:
         print("\nStopped replay.")
