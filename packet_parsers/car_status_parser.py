@@ -1,13 +1,24 @@
 
 import struct
+import sys
+import os
+
+# Add parent directory to path to import constants
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from constants import (TRACTION_CONTROL, ANTI_LOCK_BRAKES, FUEL_MIX, TYRE_COMPOUNDS, 
+                      FLAG_COLORS, ERS_DEPLOYMENT_MODES, MAX_ERS_ENERGY)
 
 _HDR_FMT = "<HBBBBQfIBB"
 _HDR_SIZE = struct.calcsize(_HDR_FMT)
 
 def decode_car_status(buf: memoryview):
+    """
+    Decode F1 22 car status packet with enhanced fuel, ERS, and tyre information.
+    """
     offset = _HDR_SIZE
     cars = []
-    for _ in range(22):
+    
+    for car_idx in range(22):
         tractionControl = struct.unpack_from("<B", buf, offset)[0]; offset += 1
         antiLockBrakes = struct.unpack_from("<B", buf, offset)[0]; offset += 1
         fuelMix = struct.unpack_from("<B", buf, offset)[0]; offset += 1
@@ -31,15 +42,71 @@ def decode_car_status(buf: memoryview):
         ersHarvestedThisLapMGUH = struct.unpack_from("<f", buf, offset)[0]; offset += 4
         ersDeployedThisLap = struct.unpack_from("<f", buf, offset)[0]; offset += 4
         networkPaused = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-        cars.append({
-            "tractionControl": tractionControl, "antiLockBrakes": antiLockBrakes, "fuelMix": fuelMix,
-            "frontBrakeBias": frontBrakeBias, "pitLimiterStatus": pitLimiterStatus,
-            "fuelInTank": fuelInTank, "fuelCapacity": fuelCapacity, "fuelRemainingLaps": fuelRemainingLaps,
-            "maxRPM": maxRPM, "idleRPM": idleRPM, "maxGears": maxGears, "drsAllowed": drsAllowed,
-            "drsActivationDistance": drsActivationDistance, "actualTyreCompound": actualTyreCompound,
-            "visualTyreCompound": visualTyreCompound, "tyresAgeLaps": tyresAgeLaps, "vehicleFiaFlags": vehicleFiaFlags,
-            "ersStoreEnergy": ersStoreEnergy, "ersDeployMode": ersDeployMode,
-            "ersHarvestedThisLapMGUK": ersHarvestedThisLapMGUK, "ersHarvestedThisLapMGUH": ersHarvestedThisLapMGUH,
-            "ersDeployedThisLap": ersDeployedThisLap, "networkPaused": networkPaused
-        })
+        
+        # Calculate fuel percentage
+        fuel_percentage = (fuelInTank / fuelCapacity * 100) if fuelCapacity > 0 else 0
+        
+        # Calculate ERS percentage
+        ers_percentage = (ersStoreEnergy / MAX_ERS_ENERGY * 100) if MAX_ERS_ENERGY > 0 else 0
+        
+        # DRS status
+        drs_available = drsActivationDistance > 0
+        
+        car_data = {
+            "carIndex": car_idx,
+            "tractionControl": tractionControl,
+            "tractionControlName": TRACTION_CONTROL.get(tractionControl, f"Unknown ({tractionControl})"),
+            "antiLockBrakes": antiLockBrakes,
+            "antiLockBrakesName": ANTI_LOCK_BRAKES.get(antiLockBrakes, f"Unknown ({antiLockBrakes})"),
+            "fuelMix": fuelMix,
+            "fuelMixName": FUEL_MIX.get(fuelMix, f"Unknown ({fuelMix})"),
+            "frontBrakeBias": frontBrakeBias,
+            "pitLimiterStatus": bool(pitLimiterStatus),
+            
+            # Fuel information
+            "fuelInTank": fuelInTank,
+            "fuelCapacity": fuelCapacity,
+            "fuelPercentage": round(fuel_percentage, 1),
+            "fuelRemainingLaps": fuelRemainingLaps,
+            "fuelCritical": fuel_percentage < 10,
+            "fuelLow": fuel_percentage < 25,
+            
+            # Engine information
+            "maxRPM": maxRPM,
+            "idleRPM": idleRPM,
+            "maxGears": maxGears,
+            
+            # DRS information
+            "drsAllowed": bool(drsAllowed),
+            "drsActivationDistance": drsActivationDistance,
+            "drsAvailable": drs_available,
+            "drsStatus": "Available" if drs_available else ("Allowed" if drsAllowed else "Not allowed"),
+            
+            # Tyre information
+            "actualTyreCompound": actualTyreCompound,
+            "actualTyreCompoundName": TYRE_COMPOUNDS.get(actualTyreCompound, f"Unknown ({actualTyreCompound})"),
+            "visualTyreCompound": visualTyreCompound,
+            "visualTyreCompoundName": TYRE_COMPOUNDS.get(visualTyreCompound, f"Unknown ({visualTyreCompound})"),
+            "tyresAgeLaps": tyresAgeLaps,
+            "tyresOld": tyresAgeLaps > 20,  # Arbitrary threshold for "old" tyres
+            
+            # Flags and ERS
+            "vehicleFiaFlags": vehicleFiaFlags,
+            "flagColor": FLAG_COLORS.get(vehicleFiaFlags, f"Unknown ({vehicleFiaFlags})"),
+            "ersStoreEnergy": ersStoreEnergy,
+            "ersPercentage": round(ers_percentage, 1),
+            "ersDeployMode": ersDeployMode,
+            "ersDeployModeName": ERS_DEPLOYMENT_MODES.get(ersDeployMode, f"Unknown ({ersDeployMode})"),
+            "ersHarvestedThisLapMGUK": ersHarvestedThisLapMGUK,
+            "ersHarvestedThisLapMGUH": ersHarvestedThisLapMGUH,
+            "ersDeployedThisLap": ersDeployedThisLap,
+            "networkPaused": bool(networkPaused),
+            
+            # Warning flags
+            "hasYellowFlag": vehicleFiaFlags == 3,
+            "hasRedFlag": vehicleFiaFlags == 4,
+            "hasBlueFlag": vehicleFiaFlags == 2,
+        }
+        cars.append(car_data)
+    
     return {"carStatus": cars}
