@@ -326,11 +326,11 @@ def run_telemetry(stdscr, bind_ip: str, port: int):
     # Set up UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((bind_ip, port))
-    sock.settimeout(0.1)  # Non-blocking socket
+    sock.settimeout(0.01)  # Very short timeout for responsive display (10ms)
     
     # Initialize timer for display updates
     last_update = time.time()
-    UPDATE_INTERVAL = 0.016667  # 60 Hz refresh rate
+    UPDATE_INTERVAL = 0.033333  # 30 Hz refresh rate (good balance of smoothness and performance)
     
     while True:
         try:
@@ -339,9 +339,11 @@ def run_telemetry(stdscr, bind_ip: str, port: int):
             if c == ord('q'):
                 break
                 
-            # Process all available UDP packets
+            # Process all available UDP packets (non-blocking)
             packets_processed = 0
-            while packets_processed < 100:  # Limit to prevent infinite loop
+            packet_received = False
+            
+            while packets_processed < 50:  # Process up to 50 packets per loop
                 try:
                     data, addr = sock.recvfrom(2048)
                     buf = memoryview(data)
@@ -355,16 +357,21 @@ def run_telemetry(stdscr, bind_ip: str, port: int):
                         packet_name, decoder = PACKET_TYPES[pid]
                         payload = decoder(buf)
                         display.update_data(packet_name, payload, hdr)
+                        packet_received = True
                     
                     packets_processed += 1
                 except socket.timeout:
                     break  # No more packets waiting
                 
-            # Update display at fixed interval
+            # Update display at fixed interval OR when new data arrives
             current_time = time.time()
-            if current_time - last_update >= UPDATE_INTERVAL:
+            if (current_time - last_update >= UPDATE_INTERVAL) or packet_received:
                 display.display()
                 last_update = current_time
+                
+            # Small sleep to prevent excessive CPU usage when no packets
+            if not packet_received:
+                time.sleep(0.005)  # 5ms sleep when idle
             
         except KeyboardInterrupt:
             break

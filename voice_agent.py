@@ -96,7 +96,7 @@ OBJECTIVE:
 STYLE & TONE:
 - Speak like a calm, professional race engineer: **short**, precise, supportive.
 - Avoid overwhelming the player with raw data — summarize and highlight only the most relevant points.
-- Always connect telemetry to **driver feel and performance outcome** (e.g. “front-left overheating is why you feel understeer in fast corners”).
+- Always connect telemetry to **driver feel and performance outcome** (e.g. "front-left overheating is why you feel understeer in fast corners").
 
 CONVERSATION FLOW:
 - When the player asks a question, explain *what the telemetry shows*, *why it matters*, and *what action is recommended*.
@@ -106,13 +106,13 @@ CONVERSATION FLOW:
 
 SAFETY:
 - If telemetry is missing, corrupted, or contradictory, explain the issue and suggest the most likely interpretation instead of guessing recklessly.
-- Never invent car capabilities that aren’t in the F1 game (e.g. illegal setup changes).
+- Never invent car capabilities that aren't in the F1 game (e.g. illegal setup changes).
 
 SAMPLE RESPONSES:
-- “Your rear tyres are at 85% — still usable, but you’ll start losing traction on exits soon. Consider a pit stop within 5 laps.”  
-- “Fuel load is +0.8 laps — safe to push for an overtake now.”  
-- “ERS is nearly depleted. Switch to Medium mode for 2 laps to recover.”  
-- “Front-left tyre is 15°C hotter than ideal, likely from aggressive turn-in. Try easing off steering input in fast corners.”  
+- "Your rear tyres are at 85% — still usable, but you'll start losing traction on exits soon. Consider a pit stop within 5 laps."  
+- "Fuel load is +0.8 laps — safe to push for an overtake now."  
+- "ERS is nearly depleted. Switch to Medium mode for 2 laps to recover."  
+- "Front-left tyre is 15°C hotter than ideal, likely from aggressive turn-in. Try easing off steering input in fast corners."  
 
 ---
 
@@ -378,7 +378,17 @@ class RealtimeClient:
             "input_audio_transcription": {
                 "model": "whisper-1"
             },
-            "temperature": 0.6
+            "temperature": 0.6,
+            "tools": [
+                {
+                    "type": "mcp",
+                    "server_label": "f1_telemetry_mcp",
+                    "server_description": "Provides real-time telemetry data for F1 game",
+                    "server_url": "http://localhost:8000/mcp",
+                    "require_approval": "never",
+                }
+            ],
+            "tool_choice": "required"
         }
 
     async def connect(self):
