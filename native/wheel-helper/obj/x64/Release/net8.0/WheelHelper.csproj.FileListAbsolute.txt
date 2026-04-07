@@ -1,0 +1,15 @@
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.AssemblyInfoInputs.cache
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.AssemblyInfo.cs
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.csproj.CoreCompileInputs.cache
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.sourcelink.json
+C:\Projects\f1_radaio\native\wheel-helper\bin\x64\Release\net8.0\WheelHelper.exe
+C:\Projects\f1_radaio\native\wheel-helper\bin\x64\Release\net8.0\WheelHelper.deps.json
+C:\Projects\f1_radaio\native\wheel-helper\bin\x64\Release\net8.0\WheelHelper.runtimeconfig.json
+C:\Projects\f1_radaio\native\wheel-helper\bin\x64\Release\net8.0\WheelHelper.dll
+C:\Projects\f1_radaio\native\wheel-helper\bin\x64\Release\net8.0\WheelHelper.pdb
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.dll
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\refint\WheelHelper.dll
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.pdb
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\WheelHelper.genruntimeconfig.cache
+C:\Projects\f1_radaio\native\wheel-helper\obj\x64\Release\net8.0\ref\WheelHelper.dll

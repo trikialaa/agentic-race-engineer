@@ -6,7 +6,7 @@ import os
 # Add parent directory to path to import constants
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from constants import (TRACTION_CONTROL, ANTI_LOCK_BRAKES, FUEL_MIX, TYRE_COMPOUNDS, 
-                      FLAG_COLORS, ERS_DEPLOYMENT_MODES, MAX_ERS_ENERGY)
+                      VISUAL_TYRE_COMPOUNDS, FLAG_COLORS, ERS_DEPLOYMENT_MODES, MAX_ERS_ENERGY)
 
 _HDR_FMT = "<HBBBBQfIBB"
 _HDR_SIZE = struct.calcsize(_HDR_FMT)
@@ -86,9 +86,8 @@ def decode_car_status(buf: memoryview):
             "actualTyreCompound": actualTyreCompound,
             "actualTyreCompoundName": TYRE_COMPOUNDS.get(actualTyreCompound, f"Unknown ({actualTyreCompound})"),
             "visualTyreCompound": visualTyreCompound,
-            "visualTyreCompoundName": TYRE_COMPOUNDS.get(visualTyreCompound, f"Unknown ({visualTyreCompound})"),
+            "visualTyreCompoundName": VISUAL_TYRE_COMPOUNDS.get(visualTyreCompound, f"Unknown ({visualTyreCompound})"),
             "tyresAgeLaps": tyresAgeLaps,
-            "tyresOld": tyresAgeLaps > 20,  # Arbitrary threshold for "old" tyres
             
             # Flags and ERS
             "vehicleFiaFlags": vehicleFiaFlags,

@@ -72,6 +72,15 @@ TYRE_COMPOUNDS = {
     8: "Wet"
 }
 
+# Visual tyre compounds shown in-game
+VISUAL_TYRE_COMPOUNDS = {
+    16: "Soft",
+    17: "Medium",
+    18: "Hard",
+    7: "Inter",
+    8: "Wet"
+}
+
 # ERS deployment modes
 ERS_DEPLOYMENT_MODES = {
     0: "None",
@@ -710,12 +719,12 @@ WHEEL_ORDER = {
 
 # Temperature thresholds (approximate values for warnings)
 TEMP_THRESHOLDS = {
-    "engine_warning": 110,  # Celsius
+    "engine_warning": 112,  # Celsius
     "engine_critical": 120,
     "brake_warning": 700,   # Celsius
-    "brake_critical": 800,
-    "tyre_warning": 100,    # Celsius
-    "tyre_critical": 110
+    "brake_critical": 850,
+    "tyre_warning": 105,    # Celsius
+    "tyre_critical": 115
 }
 
 # Speed conversion factors

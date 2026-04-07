@@ -1,0 +1,132 @@
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f2f2f2;
+  background-color: #0d0d0d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+main {
+  max-width: 500px;
+  width: 90vw;
+  padding: 2rem;
+  text-align: center;
+  border-radius: 16px;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), rgba(13, 13, 13, 0.95));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+h1 {
+  margin-top: 0;
+}
+
+button {
+  border: 0;
+  padding: 1rem 1.5rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #0094ff, #a100ff);
+  color: white;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.controls button {
+  margin-top: 0;
+}
+
+button.recording {
+  background: linear-gradient(135deg, #ff4f4f, #ffdf5e);
+  transform: scale(1.03);
+  box-shadow: 0 0 30px rgba(255, 79, 79, 0.5);
+}
+
+#status {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#latency {
+  margin-top: 0.35rem;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.latency-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.latency-grid {
+  margin-top: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.3rem 0.5rem;
+}
+
+.latency-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.35rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.85rem;
+}
+
+section {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+li {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.95rem;
+}
+
+#status[data-state="highlight"] {
+  color: #ffb703;
+}
+
+.message {
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.message.user {
+  color: #c7f1ff;
+}
+
+.message.agent {
+  color: #84ffb2;
+}
