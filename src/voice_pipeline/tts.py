@@ -2,11 +2,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from io import BytesIO
+import audioop
 import base64
 import json
 import wave
 import requests
 import os
+from pathlib import Path
 
 INWORLD_API_KEY = os.getenv("INWORLD_API_KEY")
 INWORLD_BASE_URL = os.getenv("INWORLD_BASE_URL")
@@ -27,6 +29,8 @@ class TTS():
     SAMPLE_RATE = 48000
     CHANNELS = 1
     SAMPLE_WIDTH = 2
+    CHUNK_SIZE = 4096
+    INTRO_PATH = Path(__file__).resolve().parents[2] / "assets" / "f1radio.wav"
 
     def __init__(self):
         pass
@@ -41,6 +45,7 @@ class TTS():
         payload = self._build_payload(text)
 
         def generator():
+            yield from self._intro_stream()
             with requests.post(INWORLD_BASE_URL, json=payload, headers=headers, stream=True) as response:
                 response.raise_for_status()
                 for line in response.iter_lines(decode_unicode=True):
@@ -59,6 +64,43 @@ class TTS():
                         yield trimmed_chunk
 
         return generator()
+
+    def _intro_stream(self):
+        if not self.INTRO_PATH.exists():
+            return
+        try:
+            with wave.open(str(self.INTRO_PATH), "rb") as wf:
+                data = wf.readframes(wf.getnframes())
+                if wf.getsampwidth() != self.SAMPLE_WIDTH:
+                    data = audioop.lin2lin(
+                        data, wf.getsampwidth(), self.SAMPLE_WIDTH
+                    )
+                if wf.getnchannels() != self.CHANNELS:
+                    if wf.getnchannels() == 2 and self.CHANNELS == 1:
+                        data = audioop.tomono(
+                            data, self.SAMPLE_WIDTH, 0.5, 0.5
+                        )
+                    elif wf.getsampwidth() and wf.getnchannels() > 1:
+                        sample_stride = wf.getsampwidth() * wf.getnchannels()
+                        mono = bytearray()
+                        for pos in range(0, len(data), sample_stride):
+                            mono.extend(
+                                data[pos : pos + wf.getsampwidth()]
+                            )
+                        data = bytes(mono)
+                if wf.getframerate() != self.SAMPLE_RATE:
+                    data, _ = audioop.ratecv(
+                        data,
+                        self.SAMPLE_WIDTH,
+                        self.CHANNELS,
+                        wf.getframerate(),
+                        self.SAMPLE_RATE,
+                        None,
+                    )
+                for idx in range(0, len(data), self.CHUNK_SIZE):
+                    yield data[idx : idx + self.CHUNK_SIZE]
+        except Exception:
+            return
 
     def _build_payload(self, text):
         return {

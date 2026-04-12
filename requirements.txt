@@ -1,0 +1,9 @@
+fastmcp>=2.14.0
+flask>=2.3
+werkzeug>=2.3
+python-dotenv>=1.0
+deepgram-sdk>=1.0
+requests>=2.31
+openai>=1.0
+autogen-core>=0.7
+autogen-ext>=0.7
