@@ -1,0 +1,5 @@
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.exe
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.dll
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.deps.json
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.runtimeconfig.json
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.pdb

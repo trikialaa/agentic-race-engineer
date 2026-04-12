@@ -2,7 +2,7 @@
   "name": "f1-radaio",
   "version": "0.1.0",
   "description": "Electron shell for the F1 radio voice assistant",
-  "main": "electron/main.js",
+  "main": "src/ui/electron/main.js",
   "private": true,
   "type": "commonjs",
   "scripts": {

@@ -2,7 +2,7 @@
   "mcpServers": {
     "f1-telemetry": {
       "command": "uvx",
-      "args": ["--from", ".", "python", "f1_telemetry_mcp_server.py"],
+      "args": ["--from", ".", "python", "-m", "src.mcp.server"],
       "env": {
         "FASTMCP_LOG_LEVEL": "INFO"
       },

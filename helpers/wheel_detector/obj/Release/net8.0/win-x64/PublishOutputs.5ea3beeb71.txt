@@ -1,0 +1,2 @@
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.pdb
+C:\Projects\f1_radaio\native\wheel-helper\bin\WheelHelper.exe
