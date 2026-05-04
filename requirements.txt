@@ -5,5 +5,4 @@ python-dotenv>=1.0
 deepgram-sdk>=1.0
 requests>=2.31
 openai>=1.0
-autogen-core>=0.7
-autogen-ext>=0.7
+agent-framework>=1.0.0b0,<1.1.0

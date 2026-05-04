@@ -1,9 +1,9 @@
 import asyncio
 import logging
-import os
 import signal
 import sys
 import threading
+import os
 from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.mcp.server import telemetry_capture, mcp
 from src.voice_pipeline.agent import RaceEngineerAgent
 
 AGENT_TIMEOUT = 15.0
@@ -21,6 +20,7 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(m
 
 agent = RaceEngineerAgent()
 agent_loop = asyncio.new_event_loop()
+shutdown_requested = threading.Event()
 
 
 def start_agent_loop() -> None:
@@ -41,10 +41,6 @@ def run_agent_coroutine(coro, timeout: float = AGENT_TIMEOUT):
         raise
 
 
-async def init_agent():
-    await agent.init_async()
-
-
 def ensure_agent_ready(timeout: float = AGENT_TIMEOUT) -> bool:
     try:
         run_agent_coroutine(agent.init_async(), timeout)
@@ -59,23 +55,21 @@ def query_agent(prompt: str, **kwargs) -> str | None:
     return run_agent_coroutine(agent.reply_async(prompt, **kwargs))
 
 
-def start_mcp_server():
-    telemetry_capture.start_capture()
-    mcp_thread = threading.Thread(target=mcp.run, daemon=True)
-    mcp_thread.start()
-    return mcp_thread
-
-
-def stop_mcp_server():
-    telemetry_capture.stop_capture()
-    mcp.stop()
+def shutdown_agent(timeout: float = AGENT_TIMEOUT) -> None:
+    """Best-effort shutdown of the agent and MCP subprocess."""
+    try:
+        run_agent_coroutine(agent.shutdown_async(), timeout=timeout)
+    except Exception as exc:
+        logging.warning("Agent shutdown timed out or failed: %s", exc)
 
 
 def interactive_loop():
     print("Text-only agent console (type EXIT or press Ctrl+D to quit)")
-    while True:
+    while not shutdown_requested.is_set():
         try:
             text = input("> ").strip()
+        except KeyboardInterrupt:
+            break
         except EOFError:
             break
         if not text:
@@ -93,22 +87,29 @@ def main():
     if not ensure_agent_ready():
         sys.exit(1)
 
-    mcp_thread = start_mcp_server()
+    def handle_termination(sig, frame):
+        shutdown_requested.set()
+        print("\nShutting down...")
+        # Force input() to unblock immediately on Unix-like systems.
+        try:
+            os.close(sys.stdin.fileno())
+        except Exception:
+            pass
 
-    def handle_sigint(sig, frame):
-        print("\nShutting down…")
-        stop_mcp_server()
-        agent_loop.call_soon_threadsafe(agent_loop.stop)
-
-    signal.signal(signal.SIGINT, handle_sigint)
-    signal.signal(signal.SIGTERM, handle_sigint)
+    signal.signal(signal.SIGINT, handle_termination)
+    signal.signal(signal.SIGTERM, handle_termination)
 
     try:
         interactive_loop()
     finally:
-        stop_mcp_server()
-        agent_loop.call_soon_threadsafe(agent_loop.stop)
-        mcp_thread.join(timeout=1.0)
+        shutdown_requested.set()
+        shutdown_agent(timeout=AGENT_TIMEOUT)
+        if agent_loop.is_running():
+            agent_loop.call_soon_threadsafe(agent_loop.stop)
+        agent_thread.join(timeout=1.0)
+        # Last-resort exit if a child process still prevents normal shutdown.
+        if agent_thread.is_alive():
+            os._exit(1)
 
 
 if __name__ == "__main__":

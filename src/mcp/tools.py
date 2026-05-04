@@ -16,6 +16,23 @@ TOOL_FUNCTIONS = [
     "get_weather_forecast",
 ]
 
+TOOL_DESCRIPTIONS = {
+    "get_context_frame": (
+        "Primary up-to-date race context for the current moment. "
+        "Use first for most driver questions."
+    ),
+    "get_leaderboard": (
+        "Race order and competitive context by driver. Includes gaps, tyre age, pit stops, "
+        "penalties, and position change. Use to assess lost time, strategy differences, and traffic."
+    ),
+    "get_lap_times": (
+        "Most recent and best lap/sector pace per driver. Use for pace comparison and where time is gained or lost."
+    ),
+    "get_weather_forecast": (
+        "Current weather plus detailed forecast samples by offset. Use for rain timing and track evolution expectations."
+    ),
+}
+
 
 def register_mcp_tools(mcp: FastMCP, capture: F1TelemetryCapture) -> None:
     """Register telemetry tools with the FastMCP server."""
@@ -53,7 +70,11 @@ def generated_tool({param_defs}):
         wrapper.__name__ = tool_func.__name__
         wrapper.__signature__ = tool_signature
         wrapper.__annotations__ = annotations
-        mcp.tool()(wrapper)
+        wrapper.__doc__ = TOOL_DESCRIPTIONS.get(tool_func.__name__, tool_func.__doc__)
+        mcp.tool(
+            name=tool_func.__name__,
+            description=TOOL_DESCRIPTIONS.get(tool_func.__name__),
+        )(wrapper)
     for name in TOOL_FUNCTIONS:
         func = getattr(mcp_functions, name)
         bind(func)
