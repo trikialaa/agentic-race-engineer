@@ -124,11 +124,155 @@ class F1TelemetryCapture:
             "final_classification": None,
             "session_history": None
         }
+        self.session_history_by_car: List[Optional[Dict[str, Any]]] = [None for _ in range(self.max_cars)]
+        self.classified_events = {
+            "critical": deque(maxlen=self.events_buffer_size),
+            "relevant": deque(maxlen=self.events_buffer_size),
+            "informational": deque(maxlen=self.events_buffer_size),
+        }
+        self.classified_event_stream = deque(maxlen=self.events_buffer_size * 2)
+        self._event_dedupe_ttl_s = 2.0
+        self._event_last_emitted: Dict[str, float] = {}
+        self._last_player_yellow: Optional[bool] = None
 
         # Track last seen states per car
         self._last_lap_num = [0 for _ in range(self.max_cars)]
         self._last_position = [0 for _ in range(self.max_cars)]
         self._last_pit_status = [None for _ in range(self.max_cars)]
+        self._presence_state = "neither"
+        self._presence_reason = "stale_or_no_packets"
+        self._presence_candidate_state: Optional[str] = None
+        self._presence_candidate_reason: Optional[str] = None
+        self._presence_candidate_count = 0
+        self._presence_last_transition: Optional[float] = None
+
+    def _event_vehicle_indices(self, details: Any) -> List[int]:
+        if not isinstance(details, dict):
+            return []
+        idxs = []
+        for key in (
+            "vehicleIdx",
+            "otherVehicleIdx",
+            "overtakingVehicleIdx",
+            "beingOvertakenVehicleIdx",
+            "vehicle1Idx",
+            "vehicle2Idx",
+        ):
+            val = details.get(key)
+            if isinstance(val, int) and val >= 0:
+                idxs.append(val)
+        return idxs
+
+    def _is_nearby_vehicle_locked(self, vehicle_idx: int, window: int = 3) -> bool:
+        laps = self.data.get("lap_data", {}).get("laps", []) or []
+        if not (0 <= vehicle_idx < len(laps) and 0 <= self.player_car_index < len(laps)):
+            return False
+        try:
+            player_pos = int((laps[self.player_car_index] or {}).get("carPosition") or 0)
+            other_pos = int((laps[vehicle_idx] or {}).get("carPosition") or 0)
+        except Exception:
+            return False
+        if player_pos <= 0 or other_pos <= 0:
+            return False
+        return abs(player_pos - other_pos) <= max(1, window)
+
+    def _player_immediate_proximity_risk_locked(self) -> bool:
+        laps = self.data.get("lap_data", {}).get("laps", []) or []
+        telemetry = self.data.get("car_telemetry", {}).get("carTelemetry", []) or []
+        if not (0 <= self.player_car_index < len(laps)):
+            return False
+        player_lap = laps[self.player_car_index] if isinstance(laps[self.player_car_index], dict) else {}
+        player_pos = player_lap.get("carPosition")
+        if not isinstance(player_pos, int) or player_pos <= 0:
+            return False
+        player_total = player_lap.get("totalDistance")
+        if not isinstance(player_total, (int, float)):
+            return False
+        player_speed = 0.0
+        if 0 <= self.player_car_index < len(telemetry):
+            tel = telemetry[self.player_car_index] if isinstance(telemetry[self.player_car_index], dict) else {}
+            sp = tel.get("speedKph")
+            if isinstance(sp, (int, float)):
+                player_speed = float(sp) / 3.6
+        for idx, lap in enumerate(laps):
+            if idx == self.player_car_index or not isinstance(lap, dict):
+                continue
+            other_pos = lap.get("carPosition")
+            if not isinstance(other_pos, int) or abs(other_pos - player_pos) != 1:
+                continue
+            other_total = lap.get("totalDistance")
+            if not isinstance(other_total, (int, float)):
+                continue
+            other_speed = 0.0
+            if 0 <= idx < len(telemetry):
+                tel = telemetry[idx] if isinstance(telemetry[idx], dict) else {}
+                sp = tel.get("speedKph")
+                if isinstance(sp, (int, float)):
+                    other_speed = float(sp) / 3.6
+            avg_speed = max((player_speed + other_speed) / 2.0, 0.1)
+            gap_s = abs(float(other_total) - float(player_total)) / avg_speed
+            if gap_s <= 1.2:
+                return True
+        return False
+
+    def _classify_event_locked(self, code: str, details: Dict[str, Any], event_name: str = "") -> str:
+        ignored = {"SPTP", "FLBK", "BUTN"}
+        if code in ignored:
+            return "ignored"
+
+        player_idx = self.player_car_index
+        vehicles = self._event_vehicle_indices(details)
+        involves_player = player_idx in vehicles
+        nearby = any(self._is_nearby_vehicle_locked(idx) for idx in vehicles if idx != player_idx)
+
+        if code in {"RDFL", "SCAR", "CHQF"}:
+            return "critical"
+        if code == "COLL":
+            return "critical" if involves_player else ("relevant" if nearby else "informational")
+        if code == "RTMT":
+            return "critical" if involves_player else ("relevant" if nearby else "informational")
+        if code == "PENA":
+            penalty_name = str(details.get("penaltyTypeName") or "").lower()
+            penalty_time = details.get("time")
+            if involves_player:
+                if any(token in penalty_name for token in ("drive through", "stop go", "disqualified", "grid", "time penalty")):
+                    return "critical"
+                if isinstance(penalty_time, int) and penalty_time > 0:
+                    return "critical"
+                return "relevant"
+            return "relevant" if nearby else "informational"
+        if code in {"OVTK", "DRSE", "DRSD", "TMPT", "FTLP", "RCWN"}:
+            return "relevant" if (involves_player or nearby or code in {"DRSE", "DRSD", "RCWN"}) else "informational"
+        if code in {"SSTA", "SEND", "STLG", "LGOT", "DTSV", "SGSV"}:
+            return "informational"
+        if code == "YELW":
+            if details.get("localPlayerYellow"):
+                return "critical" if details.get("immediateRisk") else "relevant"
+            return "informational"
+        return "informational"
+
+    def _emit_classified_event_locked(self, code: str, event_name: str, details: Dict[str, Any], now: float) -> None:
+        severity = self._classify_event_locked(code, details, event_name=event_name)
+        if severity == "ignored":
+            return
+        vehicles = self._event_vehicle_indices(details)
+        involves_player = self.player_car_index in vehicles
+        key = f"{severity}|{code}|{involves_player}|{details.get('vehicleIdx')}|{details.get('otherVehicleIdx')}|{details.get('time')}|{details.get('lapNum')}|{details.get('eventType')}"
+        last = self._event_last_emitted.get(key)
+        if isinstance(last, float) and now - last < self._event_dedupe_ttl_s:
+            return
+        self._event_last_emitted[key] = now
+        entry = {
+            "code": code,
+            "eventName": event_name,
+            "details": details,
+            "time": time.strftime("%H:%M:%S"),
+            "severity": severity,
+            "involvesPlayer": involves_player,
+        }
+        if severity in self.classified_events:
+            self.classified_events[severity].appendleft(entry)
+        self.classified_event_stream.appendleft(entry)
         
     def start_capture(self):
         """Start capturing telemetry data in a background thread"""
@@ -218,11 +362,17 @@ class F1TelemetryCapture:
                         event_code = event_code.decode("ascii", "ignore").strip()
                     except Exception:
                         event_code = str(event_code)
-                if event_code and event_code != "NULL" and event_code != "BUTN":
+                if event_code and event_code != "NULL":
+                    details = data.get("details", {})
+                    event_name = EVENT_CODES.get(event_code, event_code)
+                    self._emit_classified_event_locked(event_code, event_name, details if isinstance(details, dict) else {}, now)
+                    if event_code in {"SPTP", "FLBK", "BUTN"}:
+                        self.last_update = now
+                        return
                     event_entry = {
                         "code": event_code,
-                        "eventName": EVENT_CODES.get(event_code, event_code),
-                        "details": data.get("details", {}),
+                        "eventName": event_name,
+                        "details": details,
                         "time": time.strftime("%H:%M:%S")
                     }
                     self.data[packet_type]["eventHistory"].insert(0, event_entry)
@@ -321,6 +471,33 @@ class F1TelemetryCapture:
                                     prev_flag = prev_zone
                             if curr_flag != prev_flag:
                                 marshal_changes.appendleft({"time": now, "zoneIndex": idx, "flag": curr_flag})
+                # Synthetic yellow event from session marshal/player status context
+                player_yellow = None
+                try:
+                    status_data = self.data.get("car_status", {}).get("carStatus", []) or []
+                    if 0 <= self.player_car_index < len(status_data):
+                        stat = status_data[self.player_car_index] if isinstance(status_data[self.player_car_index], dict) else {}
+                        has_yellow = stat.get("hasYellowFlag")
+                        if isinstance(has_yellow, bool):
+                            player_yellow = has_yellow
+                        else:
+                            flag_color = str(stat.get("flagColor") or "").lower()
+                            if flag_color:
+                                player_yellow = "yellow" in flag_color
+                except Exception:
+                    player_yellow = None
+                if isinstance(player_yellow, bool):
+                    if player_yellow and self._last_player_yellow is not True:
+                        self._emit_classified_event_locked(
+                            "YELW",
+                            "Yellow Flag",
+                            {
+                                "localPlayerYellow": True,
+                                "immediateRisk": self._player_immediate_proximity_risk_locked(),
+                            },
+                            now,
+                        )
+                    self._last_player_yellow = player_yellow
 
                 session_store.snapshot = new_snapshot
                 self.data[packet_type] = session_store.to_dict()
@@ -330,6 +507,11 @@ class F1TelemetryCapture:
                 self.data["time_trial"] = data
             elif packet_type == "lap_positions":
                 self.data["lap_positions"] = data
+            elif packet_type == "session_history":
+                self.data["session_history"] = data
+                car_idx = data.get("carIdx") if isinstance(data, dict) else None
+                if isinstance(car_idx, int) and 0 <= car_idx < self.max_cars:
+                    self.session_history_by_car[car_idx] = dict(data)
             else:
                 self.data[packet_type] = data
             self.last_update = now
@@ -603,6 +785,121 @@ class F1TelemetryCapture:
         with self.lock:
             return dict(self.data.get("session", {})), self.last_update
 
+    def get_player_presence_state(self, stale_after_seconds: float = 3.0, confirm_samples: int = 2) -> Dict[str, Any]:
+        """Classify whether telemetry indicates lobby, live gameplay, or neither."""
+        now = time.time()
+        with self.lock:
+            session = dict(self.data.get("session", {}))
+            lobby = dict(self.data.get("lobby_info", {}))
+            laps = list(self.data.get("lap_data", {}).get("laps", []))
+            last_update = self.last_update
+            last_header = dict(self.last_header) if isinstance(self.last_header, dict) else None
+            packet_total = sum(self.packet_counts.values()) + self.unknown_packets
+            player_idx = self.player_car_index
+
+        seconds_since_update = max(0.0, now - last_update)
+        has_recent_packets = packet_total > 0 and seconds_since_update <= stale_after_seconds
+
+        session_type_name = session.get("sessionTypeName")
+        game_mode_name = session.get("gameModeName")
+        track_name = session.get("trackName")
+        has_session_identity = bool(
+            isinstance(session_type_name, str)
+            and session_type_name
+            and not session_type_name.startswith("Unknown")
+        )
+        has_game_mode = bool(
+            isinstance(game_mode_name, str)
+            and game_mode_name
+            and not game_mode_name.startswith("Unknown")
+        )
+        has_track = bool(track_name and track_name not in ("Unknown", "Unknown Track"))
+
+        lobby_players = lobby.get("players")
+        if not isinstance(lobby_players, list):
+            lobby_players = lobby.get("lobbyPlayers")
+        if not isinstance(lobby_players, list):
+            lobby_players = []
+        lobby_player_count = int(lobby.get("numPlayers") or len(lobby_players))
+
+        has_live_lap_signal = False
+        if 0 <= player_idx < len(laps):
+            lap = laps[player_idx] if isinstance(laps[player_idx], dict) else {}
+            current_lap = lap.get("currentLapNum")
+            car_position = lap.get("carPosition")
+            has_live_lap_signal = current_lap is not None or (isinstance(car_position, int) and car_position > 0)
+
+        in_game = has_recent_packets and has_session_identity and (has_game_mode or has_track or has_live_lap_signal)
+        in_lobby = has_recent_packets and not in_game and lobby_player_count > 0
+        detected_state = "in_game" if in_game else ("lobby" if in_lobby else "neither")
+
+        detected_reason = "stale_or_no_packets"
+        if detected_state == "in_game":
+            detected_reason = "session_and_live_signals_present"
+        elif detected_state == "lobby":
+            detected_reason = "lobby_players_present_without_live_session_signals"
+
+        if confirm_samples < 1:
+            confirm_samples = 1
+
+        with self.lock:
+            if confirm_samples == 1:
+                self._presence_state = detected_state
+                self._presence_reason = detected_reason
+                self._presence_candidate_state = None
+                self._presence_candidate_reason = None
+                self._presence_candidate_count = 0
+            elif detected_state == self._presence_state:
+                self._presence_candidate_state = None
+                self._presence_candidate_reason = None
+                self._presence_candidate_count = 0
+            else:
+                if self._presence_candidate_state == detected_state:
+                    self._presence_candidate_count += 1
+                else:
+                    self._presence_candidate_state = detected_state
+                    self._presence_candidate_reason = detected_reason
+                    self._presence_candidate_count = 1
+                if self._presence_candidate_count >= confirm_samples:
+                    self._presence_state = detected_state
+                    self._presence_reason = detected_reason
+                    self._presence_last_transition = now
+                    self._presence_candidate_state = None
+                    self._presence_candidate_reason = None
+                    self._presence_candidate_count = 0
+
+            stable_state = self._presence_state
+            stable_reason = self._presence_reason
+            candidate_state = self._presence_candidate_state
+            candidate_count = self._presence_candidate_count
+            last_transition = self._presence_last_transition
+
+        return {
+            "state": stable_state,
+            "reason": stable_reason,
+            "detectedState": detected_state,
+            "detectedReason": detected_reason,
+            "lastUpdate": last_update,
+            "secondsSinceUpdate": round(seconds_since_update, 3),
+            "staleAfterSeconds": stale_after_seconds,
+            "confirmSamples": confirm_samples,
+            "hasRecentPackets": has_recent_packets,
+            "packetTotal": packet_total,
+            "playerCarIndex": player_idx,
+            "sessionTypeName": session_type_name,
+            "gameModeName": game_mode_name,
+            "trackName": track_name,
+            "networkGame": session.get("networkGame"),
+            "lobbyPlayerCount": lobby_player_count,
+            "pendingTransition": {
+                "candidateState": candidate_state,
+                "candidateCount": candidate_count,
+                "remainingSamples": max(0, confirm_samples - candidate_count) if candidate_state else 0,
+            },
+            "lastTransition": last_transition,
+            "lastHeader": last_header,
+        }
+
     def _lap_participant_snapshot(self) -> Tuple[int, List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Snapshot lap data and participant list together with the player's car index."""
         with self.lock:
@@ -656,6 +953,17 @@ class F1TelemetryCapture:
         forecast_samples = session.get("forecastLatest")
         if forecast_samples is None:
             forecast_samples = session.get("weatherForecast") or []
+        if isinstance(forecast_samples, (list, tuple)):
+            filtered_samples = []
+            for sample in forecast_samples:
+                if not isinstance(sample, dict):
+                    filtered_samples.append(sample)
+                    continue
+                is_valid = sample.get("isValidSample")
+                if is_valid is False:
+                    continue
+                filtered_samples.append(sample)
+            forecast_samples = filtered_samples
         history = session.get("forecastHistory") or []
         latest_history = history[0] if history else None
         latest_forecast = (

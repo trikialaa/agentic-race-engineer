@@ -65,7 +65,7 @@ def decode_session(buf: memoryview):
     for sample_index in range(64):
         vals = struct.unpack_from("<BBBbbbbB", buf, offset)
         offset += struct.calcsize("<BBBbbbbB")
-        weather_forecast.append({
+        sample = {
             "sessionType": vals[0],
             "sessionTypeName": SESSION_TYPES.get(vals[0], f"Unknown ({vals[0]})"),
             "timeOffset": vals[1],
@@ -77,7 +77,9 @@ def decode_session(buf: memoryview):
             "airTempChange": vals[6],
             "rainPercentage": vals[7],
             "isValidSample": sample_index < m_numWeatherForecastSamples,
-        })
+        }
+        if sample["isValidSample"]:
+            weather_forecast.append(sample)
 
     m_forecastAccuracy = struct.unpack_from("<B", buf, offset)[0]; offset += 1
     m_aiDifficulty = struct.unpack_from("<B", buf, offset)[0]; offset += 1
