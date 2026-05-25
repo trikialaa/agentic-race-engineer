@@ -10,6 +10,7 @@
 
 <body>
   <main>
+    <button id="settings-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
     <h1>Nova 3 Transcribe</h1>
     <p>
       Hold / press the <strong id="hotkey-label">R</strong> key or the button below to
@@ -42,6 +43,69 @@
       <ul id="transcript-list"></ul>
     </section>
   </main>
+  <div id="settings-panel" aria-hidden="true">
+    <div class="settings-header">
+      <button id="settings-back" type="button">←</button>
+      <span class="settings-title">Settings</span>
+    </div>
+
+    <div class="settings-section">
+      <span class="settings-label">Hotkey</span>
+      <div class="settings-row">
+        <span id="settings-hotkey-display" class="settings-value">R</span>
+        <button id="settings-rebind-btn" type="button" class="settings-action-btn">Rebind</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label" for="settings-udp-port">UDP Port</label>
+      <input id="settings-udp-port" class="settings-input" type="number" min="1024" max="65535">
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label" for="settings-server-port">Server Port</label>
+      <input id="settings-server-port" class="settings-input" type="number" min="1024" max="65535">
+    </div>
+
+    <div class="settings-section">
+      <span class="settings-label">Active Session Types</span>
+      <div id="settings-session-types" class="settings-checkboxes">
+        <label><input type="checkbox" value="Race"> Race</label>
+        <label><input type="checkbox" value="Race 2"> Race 2</label>
+        <label><input type="checkbox" value="Race 3"> Race 3</label>
+        <label><input type="checkbox" value="Sprint"> Sprint</label>
+        <label><input type="checkbox" value="Qualifying"> Qualifying</label>
+        <label><input type="checkbox" value="Practice 1"> Practice 1</label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label" for="settings-tts-voice">TTS Voice</label>
+      <input id="settings-tts-voice" class="settings-input" type="text" placeholder="Voice ID (e.g. Alex)">
+    </div>
+
+    <div class="settings-section">
+      <span class="settings-label">Overlay Side</span>
+      <div class="settings-radios">
+        <label><input type="radio" name="overlay-side" value="right"> Right</label>
+        <label><input type="radio" name="overlay-side" value="left"> Left</label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label" for="settings-dismiss-speed">Overlay Dismiss Speed</label>
+      <select id="settings-dismiss-speed" class="settings-select">
+        <option value="slow">Slow</option>
+        <option value="normal">Normal</option>
+        <option value="fast">Fast</option>
+      </select>
+    </div>
+
+    <p class="settings-restart-notice">⚠ UDP port, server port, and TTS voice require a restart to take effect.</p>
+
+    <button id="settings-save-btn" type="button">Save</button>
+  </div>
+
   <script src="app.js" type="module"></script>
 </body>
 

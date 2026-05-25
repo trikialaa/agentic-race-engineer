@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,400;0,600;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: transparent; overflow: hidden; font-family: 'Titillium Web', system-ui, sans-serif; }
+
+  :root { --accent: #E10600; }
+
+  #card {
+    position: fixed;
+    right: 48px;
+    top: 50%;
+    width: 400px;
+    background: #000;
+    opacity: 0;
+    transform: translateY(calc(-50% + 16px));
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  #card.visible { opacity: 1; transform: translateY(-50%); }
+
+  #card.hiding {
+    opacity: 0;
+    transform: translateY(calc(-50% + 10px));
+    transition: opacity 0.38s ease, transform 0.38s ease;
+  }
+
+  /* ── Top: driver name + RADIO label ───────────── */
+  .top-bar {
+    padding: 14px 16px 10px;
+    text-align: right;
+    line-height: 1;
+  }
+
+  .driver-name {
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .radio-label {
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    color: #fff;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  /* ── Waveform bars (full width) ───────────────── */
+  .wave-section {
+    display: flex;
+    align-items: flex-end;
+    height: 56px;
+    gap: 3px;
+    padding: 0 16px;
+  }
+
+  .wave-bar {
+    flex: 1;
+    min-height: 3px;
+    background: linear-gradient(to top, var(--accent), transparent);
+    transition: height 0.08s ease-out;
+  }
+
+  /* ── Separator ─────────────────────────────────── */
+  .separator {
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.5;
+    margin: 0 16px;
+  }
+
+  /* ── Transcript text ───────────────────────────── */
+  .text-section {
+    padding: 12px 16px 16px;
+    min-height: 60px;
+  }
+
+  /* Driver text appears first — right-aligned, accent color, italic */
+  .driver-text {
+    font-size: 1.55rem;
+    font-weight: 700;
+    font-style: italic;
+    color: var(--accent);
+    text-align: right;
+    line-height: 1.35;
+    min-height: 1.35em;
+    opacity: 0.9;
+  }
+
+  /* Engineer reply appears second — left-aligned, white */
+  .engineer-text {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    min-height: 1.35em;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="top-bar">
+    <div class="driver-name" id="driver-name">DRIVER</div>
+    <div class="radio-label">RADIO</div>
+  </div>
+  <div class="wave-section" id="wave-section"></div>
+  <div class="separator"></div>
+  <div class="text-section">
+    <p class="driver-text" id="driver-text"></p>
+    <p class="engineer-text" id="engineer-text"></p>
+  </div>
+</div>
+<script>
+  const card = document.getElementById("card");
+  const driverNameEl = document.getElementById("driver-name");
+  const driverTextEl = document.getElementById("driver-text");
+  const engineerTextEl = document.getElementById("engineer-text");
+  const waveSection = document.getElementById("wave-section");
+
+  let dismissTimer = null;
+  let safetyTimer = null;
+  let waveTimer = null;
+  let waveRunning = false;
+  let dismissMultiplier = 1.0;
+
+  const DISMISS_MULTIPLIERS = { slow: 1.5, normal: 1.0, fast: 0.6 };
+
+  window.electronAPI.onOverlayConfig(({ position, dismissSpeed }) => {
+    if (position === "left") {
+      card.style.right = "auto";
+      card.style.left = "48px";
+    } else {
+      card.style.left = "auto";
+      card.style.right = "48px";
+    }
+    dismissMultiplier = DISMISS_MULTIPLIERS[dismissSpeed] ?? 1.0;
+  });
+
+  // Build waveform bars
+  const NUM_BARS = 9;
+  const bars = Array.from({ length: NUM_BARS }, () => {
+    const bar = document.createElement("div");
+    bar.className = "wave-bar";
+    bar.style.height = "3px";
+    waveSection.appendChild(bar);
+    return bar;
+  });
+
+  const tickWave = () => {
+    if (!waveRunning) return;
+    bars.forEach(bar => { bar.style.height = (Math.random() * 46 + 6) + "px"; });
+    waveTimer = setTimeout(tickWave, 80);
+  };
+
+  const startWave = () => { waveRunning = true; tickWave(); };
+
+  const stopWave = () => {
+    waveRunning = false;
+    clearTimeout(waveTimer);
+    bars.forEach(bar => { bar.style.height = "3px"; });
+  };
+
+  const hideCard = () => {
+    card.classList.add("hiding");
+    stopWave();
+    card.addEventListener("transitionend", () => {
+      card.classList.remove("visible", "hiding");
+    }, { once: true });
+  };
+
+  const readingTime = (text) => Math.max(3000, Math.min(15000, (2500 + text.length * 65) * dismissMultiplier));
+
+  const scheduleDismiss = (ms) => {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(hideCard, ms);
+  };
+
+  // Character-by-character reveal — returns a cancel function
+  const reveal = (el, text, msPerChar) => {
+    el.textContent = "";
+    let i = 0;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || i >= text.length) return;
+      el.textContent += text[i++];
+      if (i < text.length) setTimeout(tick, msPerChar);
+    };
+    tick();
+    return () => { cancelled = true; };
+  };
+
+  const strip = (t) => (t || "").replace(/\[.*?\]\s*/g, "").trim();
+
+  const lastName = (name) => {
+    const parts = (name || "DRIVER").trim().split(/\s+/);
+    return parts[parts.length - 1].toUpperCase();
+  };
+
+  let cancelDriverReveal = null;
+  let cancelEngineerReveal = null;
+
+  // Phase 1: driver text arrives as soon as STT returns
+  window.electronAPI.onRadioDriver(({ driver, driverText, teamColor }) => {
+    document.documentElement.style.setProperty("--accent", teamColor || "#E10600");
+    if (cancelDriverReveal) cancelDriverReveal();
+    if (cancelEngineerReveal) cancelEngineerReveal();
+    if (dismissTimer) clearTimeout(dismissTimer);
+    if (safetyTimer) clearTimeout(safetyTimer);
+
+    driverNameEl.textContent = lastName(driver);
+    driverTextEl.textContent = "";
+    engineerTextEl.textContent = "";
+
+    card.classList.remove("hiding");
+    card.classList.add("visible");
+    startWave();
+
+    cancelDriverReveal = reveal(driverTextEl, strip(driverText), 25);
+
+    // Safety dismiss in case engineer never arrives (LLM failure)
+    safetyTimer = setTimeout(hideCard, 15000);
+  });
+
+  // Phase 2: engineer reply arrives after LLM
+  window.electronAPI.onRadioEngineer(({ engineerText }) => {
+    if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null; }
+    if (cancelEngineerReveal) cancelEngineerReveal();
+
+    const eng = strip(engineerText);
+    cancelEngineerReveal = reveal(engineerTextEl, eng, 28);
+
+    scheduleDismiss(readingTime(eng));
+  });
+</script>
+</body>
+</html>

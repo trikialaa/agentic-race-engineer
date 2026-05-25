@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const { uIOhook, UiohookKey, WheelDirection } = require("uiohook-napi");
 
 const DEFAULT_URL = "http://localhost:8080";
@@ -30,6 +30,27 @@ let hotkeyConfig = { ...DEFAULT_HOTKEY };
 let hotkeyHeld = false;
 let captureActive = false;
 let pendingWheelRelease = null;
+
+let configPath = null;
+
+const loadConfig = () => {
+  if (!configPath) return {};
+  try {
+    return JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch {
+    return {};
+  }
+};
+
+const saveConfig = (updates) => {
+  if (!configPath) return;
+  try {
+    const existing = loadConfig();
+    fs.writeFileSync(configPath, JSON.stringify({ ...existing, ...updates }, null, 2), "utf8");
+  } catch (err) {
+    console.error("Failed to save config:", err);
+  }
+};
 
 const keyReverseMap = Object.entries(UiohookKey).reduce((map, [name, code]) => {
   map[code] = name;
@@ -225,6 +246,7 @@ const setHotkey = (config) => {
   hotkeyConfig = sanitized;
   resetHotkeyState();
   broadcastHotkeyUpdated();
+  saveConfig({ hotkey: hotkeyConfig });
   return true;
 };
 
@@ -354,6 +376,14 @@ const startWheelHelper = () => {
     );
     wheelHelperProcess = null;
     wheelStdoutBuffer = "";
+    // If the button was held when the helper died, synthesize a release so
+    // hotkeyHeld doesn't stay stuck true and block all future presses.
+    if (hotkeyHeld && hotkeyConfig.type === "wheel-button") {
+      hotkeyHeld = false;
+      emitHotkeyEvent("up");
+    }
+    // Restart after a short delay so transient crashes self-heal.
+    setTimeout(startWheelHelper, 2000);
   });
 };
 
@@ -365,6 +395,41 @@ const stopWheelHelper = () => {
   wheelHelperProcess = null;
   wheelStdoutBuffer = "";
 };
+
+let overlayWindow = null;
+
+const broadcastOverlayConfig = () => {
+  const cfg = loadConfig();
+  overlayWindow?.webContents.send("overlay:config", {
+    position: cfg.overlayPosition ?? "right",
+    dismissSpeed: cfg.overlayDismissSpeed ?? "normal",
+  });
+};
+
+function createOverlayWindow() {
+  const { width, height } = screen.getPrimaryDisplay().size;
+  overlayWindow = new BrowserWindow({
+    width,
+    height,
+    x: 0,
+    y: 0,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  overlayWindow.setAlwaysOnTop(true, "screen-saver");
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  overlayWindow.loadFile(path.join(__dirname, "overlay.html"));
+  overlayWindow.webContents.once("did-finish-load", broadcastOverlayConfig);
+  overlayWindow.on("closed", () => { overlayWindow = null; });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -387,6 +452,22 @@ function createWindow() {
   return mainWindow;
 }
 
+ipcMain.on("show-radio-driver", (event, data) => {
+  overlayWindow?.webContents.send("radio-driver-data", data);
+});
+
+ipcMain.on("update-radio-engineer", (event, data) => {
+  overlayWindow?.webContents.send("radio-engineer-data", data);
+});
+
+ipcMain.handle("config:get", () => loadConfig());
+
+ipcMain.handle("config:set", (event, updates) => {
+  saveConfig(updates);
+  broadcastOverlayConfig();
+  return { success: true };
+});
+
 ipcMain.handle("hotkey:get", () => hotkeyConfig);
 
 ipcMain.handle("hotkey:set", (event, config) => {
@@ -406,6 +487,15 @@ ipcMain.handle("hotkey:capture", async () => {
 });
 
 app.whenReady().then(() => {
+  configPath = path.join(__dirname, "..", "..", "..", "config.json");
+  const savedConfig = loadConfig();
+  if (savedConfig.hotkey) {
+    const sanitized = sanitizeHotkey(savedConfig.hotkey);
+    if (sanitized) {
+      hotkeyConfig = sanitized;
+    }
+  }
+
   uIOhook.on("keydown", handleKeyDown);
   uIOhook.on("keyup", handleKeyUp);
   uIOhook.on("mousedown", handleMouseDown);
@@ -415,6 +505,7 @@ app.whenReady().then(() => {
   startWheelHelper();
 
   createWindow();
+  createOverlayWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

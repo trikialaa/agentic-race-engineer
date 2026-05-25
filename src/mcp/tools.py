@@ -14,6 +14,7 @@ TOOL_FUNCTIONS = [
     "get_leaderboard",
     "get_lap_times",
     "get_weather_forecast",
+    "get_strategy",
 ]
 
 TOOL_DESCRIPTIONS = {
@@ -30,6 +31,11 @@ TOOL_DESCRIPTIONS = {
     ),
     "get_weather_forecast": (
         "Current weather plus detailed forecast samples by offset. Use for rain timing and track evolution expectations."
+    ),
+    "get_strategy": (
+        "Pit stop strategy data. Includes pit window (ideal and latest lap, laps until window), "
+        "estimated rejoin position, current tyre compound and age, and all available tyre sets with wear and lap delta. "
+        "Use for any pit stop timing, undercut/overcut, or tyre choice questions."
     ),
 }
 

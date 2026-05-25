@@ -262,6 +262,9 @@ class F1TelemetryCapture:
         if isinstance(last, float) and now - last < self._event_dedupe_ttl_s:
             return
         self._event_last_emitted[key] = now
+        if len(self._event_last_emitted) > 500:
+            cutoff = now - 60.0
+            self._event_last_emitted = {k: v for k, v in self._event_last_emitted.items() if v > cutoff}
         entry = {
             "code": code,
             "eventName": event_name,
@@ -302,7 +305,7 @@ class F1TelemetryCapture:
             
             while self.running:
                 try:
-                    data, addr = self.sock.recvfrom(2048)
+                    data, addr = self.sock.recvfrom(8192)
                     buf = memoryview(data)
 
                     # Parse header
@@ -1307,6 +1310,9 @@ class F1TelemetryCapture:
             t_speed = (tel[target_car_index].get("speedKph") or 0) / 3.6 if target_car_index < len(tel) else 0
             avg_speed = max((p_speed + t_speed) / 2.0, 0.1)
             gap_seconds = gap_meters / avg_speed
+            # Discard implausible values caused by totalDistance resetting at lap crossings.
+            if abs(gap_seconds) > 180:
+                gap_seconds = None
         except Exception:
             gap_seconds = None
         return {
@@ -1380,7 +1386,7 @@ class F1TelemetryCapture:
         dmg = dmg_data[car_index] if car_index < len(dmg_data) else {}
         return {
             "carIndex": car_index,
-            "compound": status.get("actualTyreCompoundName"),
+            "compound": status.get("visualTyreCompoundName") or status.get("actualTyreCompoundName"),
             "ageLaps": status.get("tyresAgeLaps"),
             "tyresOld": status.get("tyresOld"),
             "surfaceTemp": tel.get("tyresSurfaceTemperature"),

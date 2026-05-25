@@ -2,7 +2,29 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem -Path \"c:\\\\Projects\\\\f1_radaio\" -Force)",
-      "Bash(Select-Object Name, PSIsContainer)"
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(pip show *)",
+      "Bash(pip3 show *)",
+      "Bash(python3 -c \"import deepgram; print\\(deepgram.__version__\\)\")",
+      "Bash(python -c \"import deepgram; print\\(deepgram.__version__\\)\")",
+      "Bash(find /mnt/c /home -name \"deepgram\" -type d 2>/dev/null | grep site-packages | head -5)",
+      "Read(//mnt/c/**)",
+      "Read(//usr/lib/**)",
+      "Read(//usr/local/lib/**)",
+      "Bash(/home/atriki/venv/py311/bin/python -c \"import deepgram; print\\(deepgram.__version__\\)\")",
+      "Bash(/home/atriki/venv/py311/bin/python -c \"from deepgram import DeepgramClient; c = DeepgramClient\\(\\); print\\(dir\\(c.listen\\)\\)\")",
+      "Bash(/home/atriki/venv/py311/bin/python -c \"from deepgram import DeepgramClient; c = DeepgramClient\\('dummy'\\); print\\(dir\\(c.listen\\)\\)\")",
+      "Read(//home/atriki/venv/py311/lib/python3.11/site-packages/deepgram/**)",
+      "Bash(find /home/atriki/venv/py311/lib/python3.11/site-packages/agent_framework -name \"*.py\" | head -20 && echo \"---\" && grep -rn \"def run\\\\|tools\\\\|tool_names\\\\|exclude\\\\|filter\" /home/atriki/venv/py311/lib/python3.11/site-packages/agent_framework/__init__.py 2>/dev/null | head -20)",
+      "Read(//home/atriki/venv/py311/lib/python3.11/site-packages/agent_framework/**)",
+      "Bash(cat /tmp/mcp_server.log)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:trmaker.pages.dev)",
+      "Bash(curl -s \"https://trmaker.pages.dev/\")",
+      "Bash(curl -s \"https://trmaker.pages.dev/assets/index-BG5LA7Nm.css\")",
+      "Bash(curl -s \"https://trmaker.pages.dev/fonts/stylesheet.css\")",
+      "Bash(curl -s \"https://trmaker.pages.dev/assets/index-ChL6fQsZ.js\")",
+      "Bash(grep -oE '\"[^\"]{10,}\"')"
     ]
   }
 }

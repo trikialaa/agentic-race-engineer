@@ -11,6 +11,7 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 from src.voice_pipeline.agent import RaceEngineerAgent
 from src.voice_pipeline.stt import STT
 from src.voice_pipeline.tts import TTS
+from src.voice_pipeline.tts_utils import sanitize_for_tts
 
 STATIC_FOLDER = Path(__file__).resolve().parent.parent / "ui" / "web_static"
 static_folder = str(STATIC_FOLDER)
@@ -82,32 +83,47 @@ def index():
     return send_from_directory(static_folder, "index.html")
 
 
+@app.route("/session-state", methods=["GET"])
+def session_state():
+    return jsonify(race_engineer_agent.get_session_info())
+
+
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
+    if not race_engineer_agent.is_session_active():
+        return jsonify({"error": "No active race session."}), 403
     if "audio_data" not in request.files:
         return jsonify({"error": "Missing file field 'audio_data'."}), 400
     audio_file = request.files["audio_data"]
     audio_payload = audio_file.read()
     stt_start = time.perf_counter()
-    transcript = stt.transcribe_audio(audio_payload)
+    transcript = stt.transcribe_audio(audio_payload, extra_keyterms=race_engineer_agent.get_stt_keyterms())
     stt_latency_ms = round((time.perf_counter() - stt_start) * 1000, 1)
-    agent_reply = None
-    llm_latency_ms = None
-    if transcript:
-        llm_start = time.perf_counter()
-        try:
-            agent_reply = get_agent_reply(transcript)
-        finally:
-            llm_latency_ms = round((time.perf_counter() - llm_start) * 1000, 1)
-    payload = {
+    return jsonify({
         "transcript": transcript,
-        "latency_ms": {
-            "stt": stt_latency_ms,
-            "llm": llm_latency_ms,
-        },
-    }
-    if agent_reply:
-        payload["agent_reply"] = agent_reply
+        "latency_ms": {"stt": stt_latency_ms},
+        "player": race_engineer_agent.get_player_info(),
+    })
+
+
+@app.route("/agent", methods=["POST"])
+def agent():
+    if not race_engineer_agent.is_session_active():
+        return jsonify({"error": "No active race session."}), 403
+    data = request.get_json(silent=True) or {}
+    transcript = (data.get("text") or "").strip()
+    if not transcript:
+        return jsonify({"error": "Missing 'text' field."}), 400
+    llm_start = time.perf_counter()
+    agent_reply_raw = None
+    try:
+        agent_reply_raw = get_agent_reply(transcript)
+    finally:
+        llm_latency_ms = round((time.perf_counter() - llm_start) * 1000, 1)
+    payload: dict = {"latency_ms": {"llm": llm_latency_ms}}
+    if agent_reply_raw:
+        payload["display_reply"] = agent_reply_raw   # numeric notation, for overlay
+        payload["agent_reply"] = sanitize_for_tts(agent_reply_raw)  # spoken form, for TTS
     return jsonify(payload)
 
 

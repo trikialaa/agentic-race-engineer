@@ -4,7 +4,20 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.live_data_engine.capture import F1TelemetryCapture
+from src.udp_parser.constants import VISUAL_TYRE_COMPOUNDS
 _LAP_TIMES_STATE: Dict[int, Dict[str, Dict[str, Optional[str]]]] = {}
+_LAP_TIMES_SESSION_UID: Optional[Any] = None
+
+
+def _strip_nulls(obj: Any) -> Any:
+    """Recursively replace None values with 'unknown' so the LLM knows the field exists but data is unavailable."""
+    if isinstance(obj, dict):
+        return {k: _strip_nulls(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_strip_nulls(v) for v in obj]
+    if obj is None:
+        return "unknown"
+    return obj
 
 
 def _round(value: Any, digits: int = 1) -> Optional[float]:
@@ -49,12 +62,15 @@ def _normalize_tyre_compound(compound: Any) -> Optional[str]:
         "medium": "medium",
         "hard": "hard",
         "inter": "inter",
+        "intermediate": "inter",
         "wet": "wet",
     }
     if normalized in mapping:
         return mapping[normalized]
-    if normalized.startswith("c"):
-        return None
+    # C1–C5 are actual compound IDs (hardest→softest); map to canonical visual names.
+    c_compound_map = {"c1": "hard", "c2": "hard", "c3": "medium", "c4": "soft", "c5": "soft"}
+    if normalized in c_compound_map:
+        return c_compound_map[normalized]
     if "inter" in normalized:
         return "inter"
     if "wet" in normalized:
@@ -171,7 +187,7 @@ def _session_phase(mode: str, safety_car: str, lap: Optional[int], laps_remainin
         return "not_racing"
     if safety_car in ("sc", "vsc"):
         return "sc_vsc"
-    if laps_remaining == 0:
+    if isinstance(laps_remaining, int) and laps_remaining < 0:
         return "finishing"
     if lap == 1:
         return "opening_lap"
@@ -200,40 +216,6 @@ def _presence_mode(capture: F1TelemetryCapture) -> Dict[str, Any]:
         "track": presence.get("trackName"),
         "freshnessMs": int((presence.get("secondsSinceUpdate") or 0.0) * 1000),
         "lastUpdate": presence.get("lastUpdate"),
-    }
-
-
-def _summary_line(
-    mode: str,
-    track: Optional[str],
-    session_type: Optional[str],
-    position: Optional[int],
-    laps_remaining: Optional[int],
-    sc_status: Optional[str],
-) -> str:
-    bits = [mode]
-    if session_type:
-        bits.append(session_type)
-    if track:
-        bits.append(track)
-    if position:
-        bits.append(f"P{position}")
-    if laps_remaining is not None:
-        bits.append(f"{laps_remaining} laps left")
-    if sc_status:
-        bits.append(sc_status)
-    return " | ".join(bits)
-
-
-def _envelope(capture: F1TelemetryCapture, summary: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    mode_data = _presence_mode(capture)
-    return {
-        "ok": True,
-        "timestamp": time.time(),
-        "freshnessMs": mode_data.get("freshnessMs"),
-        "state": mode_data.get("mode"),
-        "summary": summary,
-        "data": data,
     }
 
 
@@ -281,7 +263,6 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
     ers = capture.get_ers_status()
     tyres = capture.get_tyres_status()
     damage = capture.get_damage_status()
-    drs = capture.get_drs_status()
     weather = capture.get_current_weather()
     forecast = capture.get_weather_forecast()
     gap_front = capture.get_gap_to_driver_in_front()
@@ -298,16 +279,17 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
     low_fuel_mode_hard = (low_fuel_mode == 1)
     standings = capture.get_race_standings(limit=22)
     player_idx = capture.player_car_index
-    fuel_laps = _round(fuel.get("fuelRemainingLaps"), 2)
-    if not low_fuel_mode_hard and isinstance(laps_remaining, int) and laps_remaining >= 0:
-        fuel_laps = float(laps_remaining)
-    fuel_delta_laps = (
-        _round((fuel_laps - laps_remaining), 2)
-        if fuel_laps is not None and laps_remaining is not None
-        else None
-    )
-    if not low_fuel_mode_hard and fuel_delta_laps is not None and fuel_delta_laps < 0:
-        fuel_delta_laps = 0.0
+    fuel_laps_raw = _round(fuel.get("fuelRemainingLaps"), 2)
+    if low_fuel_mode_hard:
+        fuel_laps_out = fuel_laps_raw
+        fuel_delta_laps = (
+            _round((fuel_laps_raw - laps_remaining), 2)
+            if fuel_laps_raw is not None and laps_remaining is not None
+            else None
+        )
+    else:
+        fuel_laps_out = None
+        fuel_delta_laps = None
     player_position = player.get("position")
     front_driver = capture.get_driver_by_position(player_position - 1) if isinstance(player_position, int) and player_position > 1 else None
     back_driver = capture.get_driver_by_position(player_position + 1) if isinstance(player_position, int) else None
@@ -320,7 +302,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
     total_positions = max(active_positions) if active_positions else len(standings)
     if not total_positions:
         total_positions = 20
-    return {
+    result = {
         "time": _clock_now(),
         "context": {
             "session": {
@@ -336,6 +318,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
             "player": {
                 "id": player_idx,
                 "name": player.get("driverName"),
+                "team": next((r.get("teamName") for r in standings if r.get("carIndex") == player_idx), None),
                 "position": {
                     "current": player_position,
                     "total": total_positions,
@@ -363,14 +346,12 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
                         "ageLaps": tyres.get("ageLaps"),
                         "wearLevel": _level_low_medium_high(_round(sum(tyre_wear) / len(tyre_wear), 1) if tyre_wear else None),
                     },
-                    "fuelLaps": fuel_laps,
-                    "fuelDeltaLaps": fuel_delta_laps,
-                    "ersPct": _round(ers.get("ersPercentage"), 1),
-                    "drs": {
-                        "status": drs.get("drsStatus"),
-                        "available": drs.get("drsAvailable"),
-                        "fault": drs.get("drsFault") if drs.get("drsFault") is not None else "none",
+                    "fuel": {
+                        "status": "critical" if low_fuel_mode_hard else "nominal",
+                        "lapsRemaining": fuel_laps_out,
+                        "deltaLaps": fuel_delta_laps,
                     },
+                    "ersPct": _round(ers.get("ersPercentage"), 1),
                     "damageByPart": _damage_by_part_levels(damage),
                     "pitStatus": _pit_status_value(player.get("pitStatus")),
                 },
@@ -387,150 +368,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
             },
         },
     }
-
-
-def get_session_state(capture: F1TelemetryCapture) -> Dict[str, Any]:
-    mode_data = _presence_mode(capture)
-    session = capture.get_session_info()
-    data = {
-        "mode": mode_data.get("mode"),
-        "sessionType": session.get("sessionTypeName"),
-        "gameMode": mode_data.get("gameMode"),
-        "track": session.get("trackName"),
-        "lap": capture.get_current_lap(),
-        "lapsTotal": session.get("totalLaps"),
-        "lapsRemaining": capture.get_num_remaining_laps(),
-        "safetyCar": capture.get_safety_car_status(),
-        "freshnessMs": mode_data.get("freshnessMs"),
-    }
-    return _envelope(
-        capture,
-        summary=_summary_line(
-            mode=data.get("mode") or "neither",
-            track=data.get("track"),
-            session_type=data.get("sessionType"),
-            position=None,
-            laps_remaining=data.get("lapsRemaining"),
-            sc_status=data.get("safetyCar"),
-        ),
-        data=data,
-    )
-
-
-def get_weather_brief(capture: F1TelemetryCapture, points: int = 3) -> Dict[str, Any]:
-    weather = capture.get_current_weather()
-    forecast = capture.get_weather_forecast()
-    samples = forecast.get("forecastSamples") if isinstance(forecast, dict) else []
-    if not isinstance(samples, list):
-        samples = []
-    concise_samples = []
-    for sample in samples[: max(0, points)]:
-        if not isinstance(sample, dict):
-            continue
-        concise_samples.append(
-            {
-                "offsetMin": sample.get("timeOffset"),
-                "weather": sample.get("weatherName"),
-                "rainPct": sample.get("rainPercentage"),
-                "trackTempC": sample.get("trackTemp"),
-                "airTempC": sample.get("airTemp"),
-            }
-        )
-    data = {
-        "now": {
-            "weather": weather.get("weatherName"),
-            "trackTempC": weather.get("trackTemperature"),
-            "airTempC": weather.get("airTemperature"),
-        },
-        "forecast": concise_samples,
-    }
-    summary = f"{data['now']['weather']} now, next rain risk {concise_samples[0]['rainPct']}%" if concise_samples else f"{data['now']['weather']} now"
-    return _envelope(capture, summary=summary, data=data)
-
-
-def get_strategy_brief(capture: F1TelemetryCapture) -> Dict[str, Any]:
-    fuel = capture.get_fuel_status()
-    ers = capture.get_ers_status()
-    tyres = capture.get_tyres_status()
-    damage = capture.get_damage_status()
-    penalties = capture.get_penalties()
-    pit_window = capture.get_pitstop_window_recommendation()
-    data = {
-        "fuel": {
-            "pct": _round(fuel.get("fuelPercentage"), 1),
-            "laps": _round(fuel.get("fuelRemainingLaps"), 2),
-            "mix": fuel.get("fuelMixName"),
-            "critical": bool(fuel.get("fuelCritical")),
-        },
-        "ers": {
-            "pct": _round(ers.get("ersPercentage"), 1),
-            "mode": ers.get("ersDeployModeName"),
-        },
-        "tyres": {
-            "compound": tyres.get("compound"),
-            "ageLaps": tyres.get("ageLaps"),
-            "old": tyres.get("tyresOld"),
-        },
-        "damageLevel": _severity_from_damage(damage),
-        "penalties": penalties.get("penaltiesFormatted"),
-        "pitWindow": pit_window,
-        "pitRejoinPosition": capture.get_pitstop_rejoin_position(),
-    }
-    summary = f"Fuel {data['fuel']['laps']} laps, ERS {data['ers']['pct']}%, tyres {data['tyres']['compound']} age {data['tyres']['ageLaps']}"
-    return _envelope(capture, summary=summary, data=data)
-
-
-def get_player_brief(capture: F1TelemetryCapture) -> Dict[str, Any]:
-    pos = capture.get_current_position() or {}
-    telem = capture.get_player_telemetry()
-    fuel = capture.get_fuel_status()
-    ers = capture.get_ers_status()
-    tyres = capture.get_tyres_status()
-    damage = capture.get_damage_status()
-    gap_front = capture.get_gap_to_driver_in_front()
-    gap_back = capture.get_gap_to_driver_in_back()
-    telemetry_data = telem.get("telemetry") or {}
-    data = {
-        "driver": pos.get("driverName"),
-        "position": pos.get("position"),
-        "currentLap": pos.get("currentLap"),
-        "speedKph": telemetry_data.get("speedKph"),
-        "lastLap": pos.get("lastLapTime"),
-        "gapFrontS": _round((gap_front or {}).get("gapSecondsApprox"), 2),
-        "gapBackS": _round((gap_back or {}).get("gapSecondsApprox"), 2),
-        "fuelLaps": _round(fuel.get("fuelRemainingLaps"), 2),
-        "fuelCritical": bool(fuel.get("fuelCritical")),
-        "ersPct": _round(ers.get("ersPercentage"), 1),
-        "tyreCompound": tyres.get("compound"),
-        "tyreAgeLaps": tyres.get("ageLaps"),
-        "damageLevel": _severity_from_damage(damage),
-        "warnings": telemetry_data.get("warnings"),
-    }
-    summary = (
-        f"P{data.get('position')} {data.get('driver')}, "
-        f"front gap {data.get('gapFrontS')}s, fuel {data.get('fuelLaps')} laps, ERS {data.get('ersPct')}%"
-    )
-    return _envelope(capture, summary=summary, data=data)
-
-
-def get_race_brief(capture: F1TelemetryCapture) -> Dict[str, Any]:
-    state = get_session_state(capture)["data"]
-    player = get_player_brief(capture)["data"]
-    weather = get_weather_brief(capture, points=1)["data"]
-    data = {
-        "state": state,
-        "player": player,
-        "weatherNow": weather.get("now"),
-    }
-    summary = _summary_line(
-        mode=state.get("mode") or "neither",
-        track=state.get("track"),
-        session_type=state.get("sessionType"),
-        position=player.get("position"),
-        laps_remaining=state.get("lapsRemaining"),
-        sc_status=state.get("safetyCar"),
-    )
-    return _envelope(capture, summary=summary, data=data)
+    return _strip_nulls(result)
 
 
 def _format_gap_value(lap_diff: Optional[int], delta_ms: Any) -> Optional[str]:
@@ -547,7 +385,9 @@ def _position_change_since_start(current_position: Any, grid_position: Any) -> O
     if not isinstance(grid_position, int) or grid_position <= 0:
         return None
     delta = grid_position - current_position
-    if delta >= 0:
+    if delta == 0:
+        return None
+    if delta > 0:
         return f"{delta} gained"
     return f"{abs(delta)} lost"
 
@@ -700,14 +540,24 @@ def get_leaderboard(capture: F1TelemetryCapture) -> Dict[str, Any]:
                 ahead_lap = laps_by_car.get(ahead_driver.get("carIndex"), {}) or {}
                 ahead_current_lap = ahead_lap.get("currentLapNum")
 
-        laps_to_leader = (leader_current_lap - current_lap) if isinstance(leader_current_lap, int) and isinstance(current_lap, int) else None
-        laps_to_ahead = (ahead_current_lap - current_lap) if isinstance(ahead_current_lap, int) and isinstance(current_lap, int) else None
+        raw_laps_to_leader = (leader_current_lap - current_lap) if isinstance(leader_current_lap, int) and isinstance(current_lap, int) else None
+        raw_laps_to_ahead = (ahead_current_lap - current_lap) if isinstance(ahead_current_lap, int) and isinstance(current_lap, int) else None
+        # Only trust lap-count diff when the time gap confirms the car is genuinely lapped.
+        # At lap-crossing boundaries, currentLapNum briefly differs by 1 even for cars racing within seconds of each other.
+        laps_to_leader = raw_laps_to_leader if (
+            isinstance(raw_laps_to_leader, int) and raw_laps_to_leader >= 1
+            and isinstance(leader_lap_diff, (int, float)) and leader_lap_diff > 50000
+        ) else None
+        laps_to_ahead = raw_laps_to_ahead if (
+            isinstance(raw_laps_to_ahead, int) and raw_laps_to_ahead >= 1
+            and isinstance(ahead_lap_diff, (int, float)) and ahead_lap_diff > 50000
+        ) else None
 
         visible_compound = None
         tyre_age_laps = None
         if isinstance(car_id, int) and 0 <= car_id < len(status_data):
             car_status = status_data[car_id] if isinstance(status_data[car_id], dict) else {}
-            visible_compound = car_status.get("visualTyreCompoundName") or car_status.get("actualTyreCompoundName")
+            visible_compound = _normalize_tyre_compound(car_status.get("visualTyreCompoundName") or car_status.get("actualTyreCompoundName"))
             tyre_age_laps = car_status.get("tyresAgeLaps")
 
         pit_status_name = lap.get("pitStatusName")
@@ -734,13 +584,19 @@ def get_leaderboard(capture: F1TelemetryCapture) -> Dict[str, Any]:
             }
         )
 
-    return {
+    return _strip_nulls({
         "time": _clock_now(),
         "leaderboard": leaderboard,
-    }
+    })
 
 
 def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
+    global _LAP_TIMES_SESSION_UID
+    current_uid = (capture.last_header or {}).get("sessionUID")
+    if current_uid is not None and current_uid != _LAP_TIMES_SESSION_UID:
+        _LAP_TIMES_STATE.clear()
+        _LAP_TIMES_SESSION_UID = current_uid
+
     with capture.lock:
         session_history_by_car = list(getattr(capture, "session_history_by_car", []))
     standings = capture.get_race_standings(limit=22)
@@ -888,10 +744,6 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
                         best_s3_ms = s3_v
                         best_s3_text = _pick_time_text(lap_entry.get("s3"), best_s3_text)
 
-        rows.append(
-            {}
-        )
-
         most_recent_candidate = {
             "sector1": _format_ms_as_sector(recent_s1_ms) or recent_s1_text,
             "sector2": _format_ms_as_sector(recent_s2_ms) or recent_s2_text,
@@ -953,18 +805,18 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
 
         _LAP_TIMES_STATE[car_id] = {"mostRecent": most_recent_out, "best": best_out}
 
-        rows[-1] = {
+        rows.append({
             "position": position,
             "carId": car_id,
             "driver": row.get("driverName"),
             "mostRecent": most_recent_out,
             "best": best_out,
-        }
+        })
 
-    return {
+    return _strip_nulls({
         "time": _clock_now(),
         "lapTimes": rows,
-    }
+    })
 
 
 def get_weather_forecast(capture: F1TelemetryCapture) -> Dict[str, Any]:
@@ -994,7 +846,7 @@ def get_weather_forecast(capture: F1TelemetryCapture) -> Dict[str, Any]:
             }
         )
 
-    return {
+    return _strip_nulls({
         "time": _clock_now(),
         "current": {
             "weather": weather_now.get("weatherName"),
@@ -1002,4 +854,55 @@ def get_weather_forecast(capture: F1TelemetryCapture) -> Dict[str, Any]:
             "airTempC": weather_now.get("airTemperature"),
         },
         "forecast": detailed_forecast,
-    }
+    })
+
+
+def get_strategy(capture: F1TelemetryCapture) -> Dict[str, Any]:
+    pit_window = capture.get_pitstop_window_recommendation()
+    rejoin_pos_raw = capture.get_pitstop_rejoin_position()
+    rejoin_pos = rejoin_pos_raw if isinstance(rejoin_pos_raw, int) and rejoin_pos_raw > 0 else None
+    tyre_sets_data = capture.get_tyre_sets()
+    tyres = capture.get_tyres_status()
+    current_lap = capture.get_current_lap()
+
+    ideal_lap = pit_window.get("idealLap") or None
+    latest_lap = pit_window.get("latestLap") or None
+    laps_until_ideal = (
+        (ideal_lap - current_lap)
+        if isinstance(ideal_lap, int) and ideal_lap > 0 and isinstance(current_lap, int)
+        else None
+    )
+
+    available_sets: List[Dict[str, Any]] = []
+    if isinstance(tyre_sets_data, dict):
+        for s in tyre_sets_data.get("tyreSets", []):
+            if not isinstance(s, dict) or not s.get("available"):
+                continue
+            compound_id = s.get("visualTyreCompound")
+            compound = _normalize_tyre_compound(
+                VISUAL_TYRE_COMPOUNDS.get(compound_id) if isinstance(compound_id, int) else None
+            )
+            wear = s.get("wear")
+            lap_delta_ms = s.get("lapDeltaTime")
+            available_sets.append({
+                "compound": compound,
+                "wear": wear,
+                "isNew": isinstance(wear, int) and wear == 0,
+                "isFitted": bool(s.get("isFitted")),
+                "lapDeltaMs": lap_delta_ms,
+            })
+
+    return _strip_nulls({
+        "time": _clock_now(),
+        "pitWindow": {
+            "idealLap": ideal_lap,
+            "latestLap": latest_lap,
+            "lapsUntilIdeal": laps_until_ideal,
+        },
+        "rejoinPosition": rejoin_pos,
+        "currentTyre": {
+            "compound": _normalize_tyre_compound(tyres.get("compound")),
+            "ageLaps": tyres.get("ageLaps"),
+        },
+        "availableSets": available_sets,
+    })

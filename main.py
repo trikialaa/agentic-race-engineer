@@ -15,6 +15,7 @@ from typing import Iterable, List, Optional
 
 from werkzeug.serving import make_server
 
+from src.config import load as load_config
 from src.session_manager import web_transcribe_server
 
 ROOT = Path(__file__).resolve().parent
@@ -110,8 +111,9 @@ def _run_stack(
 
 def main():
     parser = argparse.ArgumentParser(description="Start the race engineer UI stack.")
+    _cfg = load_config()
     parser.add_argument("--host", default="127.0.0.1", help="HTTP host for the Flask server.")
-    parser.add_argument("--port", type=int, default=8080, help="HTTP port for the Flask server.")
+    parser.add_argument("--port", type=int, default=_cfg.get("serverPort", 8080), help="HTTP port for the Flask server.")
     parser.add_argument(
         "--electron-cmd",
         nargs="+",

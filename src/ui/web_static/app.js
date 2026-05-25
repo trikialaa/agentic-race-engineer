@@ -1,8 +1,35 @@
+const TEAM_COLORS = {
+  "Red Bull":       "#3671C6",
+  "Ferrari":        "#E8002D",
+  "Mercedes":       "#27F4D2",
+  "McLaren":        "#FF8000",
+  "Aston Martin":   "#229971",
+  "Alpine":         "#FF87BC",
+  "Williams":       "#64C4FF",
+  "Racing Bulls":   "#6692FF",
+  "Haas":           "#B6BABD",
+  "Audi":           "#C9D246",
+  "Cadillac":       "#CC0000",
+};
+
+const teamColor = (teamName) => TEAM_COLORS[teamName] ?? "#E10600";
+
 const statusEl = document.getElementById("status");
 const recordBtn = document.getElementById("record-btn");
 const transcriptList = document.getElementById("transcript-list");
 const hotkeyLabel = document.getElementById("hotkey-label");
 const hotkeyBtn = document.getElementById("hotkey-btn");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsPanel = document.getElementById("settings-panel");
+const settingsBack = document.getElementById("settings-back");
+const settingsSave = document.getElementById("settings-save-btn");
+const settingsHotkeyDisplay = document.getElementById("settings-hotkey-display");
+const settingsRebind = document.getElementById("settings-rebind-btn");
+const settingsUdpPort = document.getElementById("settings-udp-port");
+const settingsServerPort = document.getElementById("settings-server-port");
+const settingsSessionTypes = document.getElementById("settings-session-types");
+const settingsTtsVoice = document.getElementById("settings-tts-voice");
+const settingsDismissSpeed = document.getElementById("settings-dismiss-speed");
 
 const latencyElements = {
   stt: document.getElementById("latency-stt"),
@@ -50,6 +77,9 @@ const updateHotkeyDisplay = (display) => {
   }
   if (recordBtn) {
     recordBtn.textContent = `Hold ${display} or click`;
+  }
+  if (settingsHotkeyDisplay) {
+    settingsHotkeyDisplay.textContent = display;
   }
 };
 
@@ -288,24 +318,42 @@ const sendRecording = async () => {
   form.append("audio_data", blob, "recording.webm");
 
   try {
+    // Phase 1: STT — show driver text as soon as it arrives
     setStatus("Transcribing...", true);
-    const resp = await fetch("/transcribe", {
-      method: "POST",
-      body: form,
+    const sttResp = await fetch("/transcribe", { method: "POST", body: form });
+    if (sttResp.status === 403) { setStatus("No active race session."); return; }
+    if (!sttResp.ok) throw new Error("Server rejected audio");
+    const sttPayload = await sttResp.json();
+    updateLatencyValue("stt", sttPayload.latency_ms?.stt);
+
+    const transcript = sttPayload.transcript;
+    if (!transcript) {
+      setStatus("No speech detected.");
+      return;
+    }
+    addMessage(transcript, "user");
+    const player = sttPayload.player ?? {};
+    window.electronAPI?.showOverlayDriver({
+      driver: player.name || "DRIVER",
+      driverText: transcript,
+      teamColor: teamColor(player.team),
     });
-    if (!resp.ok) {
-      throw new Error("Server rejected audio");
-    }
-    const payload = await resp.json();
-    const latencyPayload = payload.latency_ms ?? payload.latency ?? {};
-    updateLatencyValue("stt", latencyPayload.stt);
-    updateLatencyValue("llm", latencyPayload.llm);
-    if (payload.transcript) {
-      addMessage(payload.transcript, "user");
-    }
-    if (payload.agent_reply) {
-      addMessage(payload.agent_reply, "agent");
-      playAgentAudio(payload.agent_reply);
+    setStatus("Thinking...", true);
+
+    // Phase 2: LLM — update overlay with engineer reply
+    const agentResp = await fetch("/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: transcript }),
+    });
+    if (!agentResp.ok) throw new Error("Agent request failed");
+    const agentPayload = await agentResp.json();
+    updateLatencyValue("llm", agentPayload.latency_ms?.llm);
+
+    if (agentPayload.agent_reply) {
+      addMessage(agentPayload.agent_reply, "agent");
+      window.electronAPI?.updateOverlayEngineer({ engineerText: agentPayload.display_reply || agentPayload.agent_reply });
+      playAgentAudio(agentPayload.agent_reply);
     }
     setStatus("Transcript received.");
   } catch (error) {
@@ -347,13 +395,44 @@ const initRecorder = async () => {
       }
     });
     mediaRecorder.addEventListener("stop", sendRecording);
-    setStatus(`Ready. Hold ${currentHotkeyDisplay} or click the button.`);
   } catch (error) {
     console.error(error);
     setStatus("Microphone access denied.");
     recordBtn.disabled = true;
   }
 };
+
+// ── Session state polling ──────────────────────────────────────
+let sessionActive = false;
+
+const applySessionState = (active) => {
+  if (active === sessionActive) return;
+  sessionActive = active;
+  if (active) {
+    recordBtn.disabled = false;
+    setStatus(`Ready. Hold ${currentHotkeyDisplay} or click the button.`);
+  } else {
+    recordBtn.disabled = true;
+    if (mediaRecorder?.state === "recording") stopRecording();
+    setStatus("Waiting for race session...");
+  }
+};
+
+const pollSession = async () => {
+  try {
+    const resp = await fetch("/session-state");
+    if (resp.ok) {
+      const { active } = await resp.json();
+      applySessionState(Boolean(active));
+    }
+  } catch { /* server starting up */ }
+};
+
+// Disable button immediately until first poll confirms an active session
+recordBtn.disabled = true;
+setStatus("Waiting for race session...");
+pollSession();
+setInterval(pollSession, 3000);
 
 recordBtn.addEventListener("mousedown", () => {
   startRecording();
@@ -382,16 +461,14 @@ const bindElectronHotkey = () => {
 
   window.electronAPI.onGlobalHotkey((action) => {
     if (action === "down") {
+      keyHeld = true;
       if (mediaRecorder?.state !== "recording") {
-        keyHeld = true;
         startRecording();
       }
     } else if (action === "up") {
-      if (keyHeld) {
-        keyHeld = false;
-        if (mediaRecorder?.state === "recording") {
-          stopRecording();
-        }
+      keyHeld = false;
+      if (mediaRecorder?.state === "recording") {
+        stopRecording();
       }
     }
   });
@@ -420,6 +497,67 @@ if (!isElectron) {
     }
   });
 }
+
+// ── Settings panel ────────────────────────────────────────────
+// Only available in Electron; hide the gear button in plain browser mode.
+if (!isElectron && settingsBtn) {
+  settingsBtn.style.display = "none";
+}
+
+const openSettings = async () => {
+  const cfg = await window.electronAPI.getConfig();
+
+  settingsHotkeyDisplay.textContent = currentHotkeyDisplay;
+  settingsUdpPort.value = cfg.udpPort ?? 20777;
+  settingsServerPort.value = cfg.serverPort ?? 8080;
+
+  const activeTypes = Array.isArray(cfg.sessionTypes) ? cfg.sessionTypes : [];
+  settingsSessionTypes.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.checked = activeTypes.includes(cb.value);
+  });
+
+  settingsTtsVoice.value = cfg.ttsVoice ?? "Alex";
+
+  const side = cfg.overlayPosition ?? "right";
+  settingsPanel.querySelectorAll("input[name='overlay-side']").forEach((r) => {
+    r.checked = r.value === side;
+  });
+
+  settingsDismissSpeed.value = cfg.overlayDismissSpeed ?? "normal";
+
+  settingsPanel.classList.add("open");
+  settingsPanel.removeAttribute("aria-hidden");
+};
+
+const closeSettings = () => {
+  settingsPanel.classList.remove("open");
+  settingsPanel.setAttribute("aria-hidden", "true");
+};
+
+const saveSettings = async () => {
+  const sessionTypes = Array.from(
+    settingsSessionTypes.querySelectorAll("input[type=checkbox]")
+  ).filter((cb) => cb.checked).map((cb) => cb.value);
+
+  const overlayPosition =
+    settingsPanel.querySelector("input[name='overlay-side']:checked")?.value ?? "right";
+
+  await window.electronAPI.setConfig({
+    udpPort: parseInt(settingsUdpPort.value, 10) || 20777,
+    serverPort: parseInt(settingsServerPort.value, 10) || 8080,
+    sessionTypes,
+    ttsVoice: settingsTtsVoice.value.trim() || "Alex",
+    overlayPosition,
+    overlayDismissSpeed: settingsDismissSpeed.value,
+  });
+
+  closeSettings();
+};
+
+if (isElectron && settingsBtn) settingsBtn.addEventListener("click", openSettings);
+if (settingsBack) settingsBack.addEventListener("click", closeSettings);
+if (settingsSave) settingsSave.addEventListener("click", saveSettings);
+if (settingsRebind) settingsRebind.addEventListener("click", startHotkeyCapture);
 
 await initHotkey();
 bindElectronHotkey();
