@@ -4,7 +4,6 @@
 that responds to your questions in real time, exactly like a real race engineer.
 
 [![CI](https://github.com/trikialaa/f1_radaio/actions/workflows/tests.yml/badge.svg)](https://github.com/trikialaa/f1_radaio/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/trikialaa/f1_radaio/branch/main/graph/badge.svg)](https://codecov.io/gh/trikialaa/f1_radaio)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
