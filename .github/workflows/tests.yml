@@ -52,8 +52,14 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
     env:
-      # Placeholder so DeepgramClient() can instantiate without a real key
+      # Placeholders so STT/TTS/Agent can instantiate at module import without real keys.
+      # Tests never actually call these services.
       DEEPGRAM_API_KEY: "placeholder"
+      INWORLD_API_KEY: "placeholder"
+      INWORLD_BASE_URL: "http://localhost"
+      BASETEN_API_KEY: "placeholder"
+      BASETEN_BASE_URL: "http://localhost"
+      BASETEN_MODEL: "placeholder"
       F1_BUFFER_CAR_TELEMETRY: "120"
       F1_BUFFER_CAR_STATUS: "100"
       F1_BUFFER_CAR_DAMAGE: "100"
