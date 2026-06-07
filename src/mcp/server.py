@@ -39,11 +39,29 @@ def main():
         default=os.getenv("F1_MCP_TRANSPORT", "stdio"),
         help="MCP transport mode: stdio for local process clients, http for remote clients",
     )
-    parser.add_argument("--udp-ip", default=os.getenv("F1_UDP_IP", telemetry_capture.bind_ip), help="UDP bind IP for telemetry")
-    parser.add_argument("--udp-port", type=int, default=int(os.getenv("F1_UDP_PORT", str(telemetry_capture.port))), help="UDP port for telemetry")
-    parser.add_argument("--host", default=os.getenv("F1_MCP_HOST", "127.0.0.1"), help="MCP server host")
-    parser.add_argument("--port", type=int, default=int(os.getenv("F1_MCP_PORT", "20915")), help="MCP server port")
-    parser.add_argument("--events-buffer", type=int, default=int(os.getenv("F1_EVENTS_BUFFER", str(telemetry_capture.events_buffer_size))), help="Max number of events to keep in memory")
+    parser.add_argument(
+        "--udp-ip",
+        default=os.getenv("F1_UDP_IP", telemetry_capture.bind_ip),
+        help="UDP bind IP for telemetry",
+    )
+    parser.add_argument(
+        "--udp-port",
+        type=int,
+        default=int(os.getenv("F1_UDP_PORT", str(telemetry_capture.port))),
+        help="UDP port for telemetry",
+    )
+    parser.add_argument(
+        "--host", default=os.getenv("F1_MCP_HOST", "127.0.0.1"), help="MCP server host"
+    )
+    parser.add_argument(
+        "--port", type=int, default=int(os.getenv("F1_MCP_PORT", "20915")), help="MCP server port"
+    )
+    parser.add_argument(
+        "--events-buffer",
+        type=int,
+        default=int(os.getenv("F1_EVENTS_BUFFER", str(telemetry_capture.events_buffer_size))),
+        help="Max number of events to keep in memory",
+    )
     args = parser.parse_args()
 
     telemetry_capture.bind_ip = args.udp_ip

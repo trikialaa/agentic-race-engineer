@@ -5,7 +5,7 @@ import json
 import logging
 import queue
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from src.voice_pipeline.tts_utils import sanitize_for_tts
 
@@ -16,19 +16,19 @@ logger = logging.getLogger(__name__)
 
 # Per-event-code callout cooldowns (seconds)
 _EVENT_COOLDOWNS: dict[str, float] = {
-    "SCAR": 90.0,   # Safety car deployed
+    "SCAR": 90.0,  # Safety car deployed
     "RDFL": 120.0,  # Red flag
-    "COLL": 45.0,   # Collision
-    "PENA": 30.0,   # Penalty issued
-    "OVTK": 30.0,   # Overtake
-    "DRSE": 30.0,   # DRS enabled
-    "DRSD": 30.0,   # DRS disabled
-    "FTLP": 60.0,   # Fastest lap set
-    "RCWN": 60.0,   # Race winner declared
+    "COLL": 45.0,  # Collision
+    "PENA": 30.0,  # Penalty issued
+    "OVTK": 30.0,  # Overtake
+    "DRSE": 30.0,  # DRS enabled
+    "DRSD": 30.0,  # DRS disabled
+    "FTLP": 60.0,  # Fastest lap set
+    "RCWN": 60.0,  # Race winner declared
 }
 _DEFAULT_EVENT_COOLDOWN = 30.0
-_GLOBAL_RATE_LIMIT_S = 20.0   # minimum gap between any two callout messages
-_PTT_SUPPRESS_S = 10.0        # suppress relevant (non-critical) callouts after user speaks
+_GLOBAL_RATE_LIMIT_S = 20.0  # minimum gap between any two callout messages
+_PTT_SUPPRESS_S = 10.0  # suppress relevant (non-critical) callouts after user speaks
 
 
 class CalloutMonitor:
@@ -48,6 +48,7 @@ class CalloutMonitor:
 
     def _severity_filter(self) -> list[str]:
         from src import config as _app_config
+
         mode = _app_config.get("engineerCallouts", _app_config.get("proactiveEvents", "critical"))
         if mode == "off":
             return []
@@ -145,11 +146,7 @@ class CalloutMonitor:
             logger.warning("Callout context frame failed: %s", exc)
             snapshot = "{}"
 
-        request_text = (
-            "Context frame, latest telemetry snapshot:\n"
-            f"{snapshot}\n\n"
-            f"{callout_msg}"
-        )
+        request_text = f"Context frame, latest telemetry snapshot:\n{snapshot}\n\n{callout_msg}"
 
         run_kwargs = {"tools": agent._mcp_tool} if agent._mcp_tool is not None else {}
         try:
@@ -158,7 +155,7 @@ class CalloutMonitor:
                     agent._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
                     timeout=7.0,
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Callout agent.run timed out for event %s", code)
             return
         except Exception as exc:
@@ -169,10 +166,12 @@ class CalloutMonitor:
         if not isinstance(reply_raw, str) or not reply_raw.strip():
             return
 
-        self._queue.put({
-            "type": "callout",
-            "engineer_reply": sanitize_for_tts(reply_raw),
-            "display_reply": reply_raw,
-            "playerTeam": agent.player_team or "",
-        })
+        self._queue.put(
+            {
+                "type": "callout",
+                "engineer_reply": sanitize_for_tts(reply_raw),
+                "display_reply": reply_raw,
+                "playerTeam": agent.player_team or "",
+            }
+        )
         logger.info("Callout fired: %s → %s", event_name, reply_raw[:80])

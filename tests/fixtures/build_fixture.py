@@ -9,6 +9,7 @@ Run: python tests/fixtures/build_fixture.py [--source /path/to/other.bin]
      python tests/fixtures/build_fixture.py --update-golden
      python tests/fixtures/build_fixture.py --skip-parity   (faster rebuild)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,12 +18,13 @@ import struct
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-DEFAULT_SOURCE = ROOT / "helpers" / "udp_sampler" / "capture_data" / "f1_25_capture_20260412_151325.bin"
+DEFAULT_SOURCE = (
+    ROOT / "helpers" / "udp_sampler" / "capture_data" / "f1_25_capture_20260412_151325.bin"
+)
 OUT_BIN = Path(__file__).parent / "race_catalunya_2025.bin"
 OUT_MARKERS = Path(__file__).parent / "markers.json"
 OUT_GOLDEN = Path(__file__).parent / "golden"
@@ -41,14 +43,27 @@ KEEP_ALL_IDS = {1, 3, 4, 8, 9, 14}  # session, event, participants, final_class,
 SESSION_HISTORY_KEEP_EVERY_N = 15
 
 # Remaining high-frequency snapshot types (latest-wins): thin more aggressively
-SNAPSHOT_IDS = {2, 6, 7, 10, 12, 13, 15}  # lap_data, car_telemetry, car_status, car_damage, tyre_sets, motion_ex, lap_pos
+SNAPSHOT_IDS = {
+    2,
+    6,
+    7,
+    10,
+    12,
+    13,
+    15,
+}  # lap_data, car_telemetry, car_status, car_damage, tyre_sets, motion_ex, lap_pos
 SNAPSHOT_KEEP_EVERY_N = 30
 
 # Tools where golden comparison is reliable (pure latest-snapshot reads, no wall-clock or
 # accumulator state). get_lap_times and get_recent_events are deliberately excluded:
 # get_lap_times depends on session_history_by_car accumulation that can't survive thinning;
 # get_recent_events depends on wall-clock dedup at ingest time.
-PARITY_GOLDEN_TOOLS = ("get_context_frame", "get_leaderboard", "get_weather_forecast", "get_strategy")
+PARITY_GOLDEN_TOOLS = (
+    "get_context_frame",
+    "get_leaderboard",
+    "get_weather_forecast",
+    "get_strategy",
+)
 
 # Markers: event codes → scenario names
 MARKER_EVENTS = {
@@ -61,15 +76,19 @@ FRAME_MARKER_MID = 5000  # synthetic mid-race
 
 def read_packets(path: Path) -> list[bytes]:
     data = path.read_bytes()
-    pos = 0; pkts = []
+    pos = 0
+    pkts = []
     while pos + 2 <= len(data):
-        length = int.from_bytes(data[pos:pos + 2], "little"); pos += 2
-        if pos + length > len(data): break
-        pkts.append(data[pos:pos + length]); pos += length
+        length = int.from_bytes(data[pos : pos + 2], "little")
+        pos += 2
+        if pos + length > len(data):
+            break
+        pkts.append(data[pos : pos + length])
+        pos += length
     return pkts
 
 
-def parse_header(pkt: bytes) -> Optional[tuple]:
+def parse_header(pkt: bytes) -> tuple | None:
     if len(pkt) < HDR_SIZE:
         return None
     return struct.unpack_from(HDR_FMT, pkt, 0)
@@ -82,23 +101,25 @@ def pid_frame(pkt: bytes) -> tuple[int, int]:
     return hdr[5], hdr[8]
 
 
-def get_event_code(pkt: bytes) -> Optional[str]:
+def get_event_code(pkt: bytes) -> str | None:
     if len(pkt) < HDR_SIZE + 4:
         return None
-    return pkt[HDR_SIZE:HDR_SIZE + 4].decode("ascii", errors="ignore")
+    return pkt[HDR_SIZE : HDR_SIZE + 4].decode("ascii", errors="ignore")
 
 
 def discover_markers(pkts: list[bytes]) -> dict:
     markers: dict[str, int] = {"mid_strategy": FRAME_MARKER_MID}
     for pkt in pkts:
         hdr = parse_header(pkt)
-        if hdr is None: continue
+        if hdr is None:
+            continue
         pid, frame = hdr[5], hdr[8]
         if pid == 3:
             code = get_event_code(pkt)
             if code in MARKER_EVENTS and MARKER_EVENTS[code] not in markers:
                 markers[MARKER_EVENTS[code]] = frame
-        if len(markers) == 4: break
+        if len(markers) == 4:
+            break
     return markers
 
 
@@ -107,9 +128,11 @@ def downsample(pkts: list[bytes], marker_frames: set[int]) -> list[bytes]:
     last_before: dict[tuple[int, int], int] = {}
     for i, pkt in enumerate(pkts):
         hdr = parse_header(pkt)
-        if hdr is None: continue
+        if hdr is None:
+            continue
         pid, frame = hdr[5], hdr[8]
-        if pid not in SNAPSHOT_IDS and pid != 11: continue
+        if pid not in SNAPSHOT_IDS and pid != 11:
+            continue
         for mf in marker_frames:
             if frame <= mf:
                 last_before[(pid, mf)] = i
@@ -119,7 +142,8 @@ def downsample(pkts: list[bytes], marker_frames: set[int]) -> list[bytes]:
     snap_ctr: dict[int, int] = defaultdict(int)
     for i, pkt in enumerate(pkts):
         hdr = parse_header(pkt)
-        if hdr is None: continue
+        if hdr is None:
+            continue
         pid = hdr[5]
         if pid in DROP_IDS:
             continue
@@ -147,8 +171,9 @@ def write_bin(pkts: list[bytes], path: Path) -> int:
 
 
 def load_capture_from_pkts(pkts: list[bytes]):
-    from src.live_data_engine.capture import F1TelemetryCapture, PACKET_TYPES
+    from src.live_data_engine.capture import PACKET_TYPES, F1TelemetryCapture
     from src.udp_parser import PacketHeader
+
     cap = F1TelemetryCapture()
     for pkt in pkts:
         buf = memoryview(pkt)
@@ -180,12 +205,14 @@ def mask_for_compare(obj):
 
 def _reset_lap_times_state() -> None:
     import src.mcp.functions.lap_times as lt
+
     lt._LAP_TIMES_STATE.clear()
     lt._LAP_TIMES_SESSION_UID = None
 
 
 def run_parity_tools(cap) -> dict:
     import src.mcp.functions as fns
+
     _reset_lap_times_state()
     results = {}
     for name in PARITY_GOLDEN_TOOLS:
@@ -217,12 +244,18 @@ def parity_check(source_pkts: list[bytes], slim_pkts: list[bytes], markers: dict
             if s != d:
                 marker_ok = False
                 errors.append(f"  PARITY FAIL [{marker_name}][{tool_name}]")
-                import difflib, pprint
-                diff = list(difflib.unified_diff(
-                    pprint.pformat(s).splitlines(),
-                    pprint.pformat(d).splitlines(),
-                    fromfile="source", tofile="slim", lineterm="",
-                ))
+                import difflib
+                import pprint
+
+                diff = list(
+                    difflib.unified_diff(
+                        pprint.pformat(s).splitlines(),
+                        pprint.pformat(d).splitlines(),
+                        fromfile="source",
+                        tofile="slim",
+                        lineterm="",
+                    )
+                )
                 for line in diff[:50]:
                     errors.append("    " + line)
         print(f"  [{marker_name}] frame={mf} — {'OK' if marker_ok else 'FAIL'}")
@@ -239,11 +272,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--skip-parity", action="store_true", help="Skip parity gate")
-    parser.add_argument("--update-golden", action="store_true", help="Regenerate golden JSON fixtures")
+    parser.add_argument(
+        "--update-golden", action="store_true", help="Regenerate golden JSON fixtures"
+    )
     args = parser.parse_args()
 
     if not args.source.exists():
-        print(f"Source not found: {args.source}"); sys.exit(1)
+        print(f"Source not found: {args.source}")
+        sys.exit(1)
 
     print(f"Reading source ({args.source.stat().st_size / 1e6:.1f} MB)...")
     source_pkts = read_packets(args.source)
@@ -269,9 +305,11 @@ def main():
         print("Generating golden fixtures...")
         OUT_GOLDEN.mkdir(exist_ok=True)
         import src.mcp.functions as fns
+
         for scenario in ("start", "green_steady", "finish"):
             mf = markers.get(scenario)
-            if mf is None: continue
+            if mf is None:
+                continue
             pkts_up = [p for p in slim_pkts if (h := parse_header(p)) is not None and h[8] <= mf]
             _reset_lap_times_state()
             cap = load_capture_from_pkts(pkts_up)

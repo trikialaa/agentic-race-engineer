@@ -1,65 +1,88 @@
-
+import os
 import struct
 import sys
-import os
 
 # Add parent directory to path to import constants
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from constants import (
-    WEATHER_TYPES,
-    SESSION_TYPES,
-    TRACK_NAMES,
-    FORMULA_TYPES,
-    FLAG_COLORS,
-    SAFETY_CAR_STATUS,
-    GAME_MODES,
-    RULESETS,
-    SESSION_LENGTH,
     ASSIST_LEVELS,
-    GEARBOX_ASSIST,
     DYNAMIC_RACING_LINE,
     DYNAMIC_RACING_LINE_TYPE,
+    FLAG_COLORS,
+    FORMULA_TYPES,
+    GAME_MODES,
+    GEARBOX_ASSIST,
+    RULESETS,
+    SAFETY_CAR_STATUS,
+    SESSION_LENGTH,
+    SESSION_TYPES,
+    TRACK_NAMES,
+    WEATHER_TYPES,
 )
 
 _HDR_FMT = "<HBBBBBQfIIBB"
 _HDR_SIZE = struct.calcsize(_HDR_FMT)
+
 
 def decode_session(buf: memoryview):
     """
     Decode the F1 25 session packet with the expanded set of controls and options.
     """
     offset = _HDR_SIZE
-    m_weather = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_trackTemperature = struct.unpack_from("<b", buf, offset)[0]; offset += 1
-    m_airTemperature = struct.unpack_from("<b", buf, offset)[0]; offset += 1
-    m_totalLaps = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_trackLength = struct.unpack_from("<H", buf, offset)[0]; offset += 2
-    m_sessionType = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_trackId = struct.unpack_from("<b", buf, offset)[0]; offset += 1
-    m_formula = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_sessionTimeLeft = struct.unpack_from("<H", buf, offset)[0]; offset += 2
-    m_sessionDuration = struct.unpack_from("<H", buf, offset)[0]; offset += 2
-    m_pitSpeedLimit = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_gamePaused = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_isSpectating = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_spectatorCarIndex = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_sliProNativeSupport = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numMarshalZones = struct.unpack_from("<B", buf, offset)[0]; offset += 1
+    m_weather = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_trackTemperature = struct.unpack_from("<b", buf, offset)[0]
+    offset += 1
+    m_airTemperature = struct.unpack_from("<b", buf, offset)[0]
+    offset += 1
+    m_totalLaps = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_trackLength = struct.unpack_from("<H", buf, offset)[0]
+    offset += 2
+    m_sessionType = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_trackId = struct.unpack_from("<b", buf, offset)[0]
+    offset += 1
+    m_formula = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_sessionTimeLeft = struct.unpack_from("<H", buf, offset)[0]
+    offset += 2
+    m_sessionDuration = struct.unpack_from("<H", buf, offset)[0]
+    offset += 2
+    m_pitSpeedLimit = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_gamePaused = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_isSpectating = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_spectatorCarIndex = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_sliProNativeSupport = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numMarshalZones = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
 
     marshal_zones = []
     for zone_index in range(21):
-        zone_start = struct.unpack_from("<f", buf, offset)[0]; offset += 4
-        zone_flag = struct.unpack_from("<b", buf, offset)[0]; offset += 1
-        marshal_zones.append({
-            "zoneStart": zone_start,
-            "zoneFlag": zone_flag,
-            "flagName": FLAG_COLORS.get(zone_flag, f"Unknown ({zone_flag})"),
-            "isActive": zone_index < m_numMarshalZones,
-        })
+        zone_start = struct.unpack_from("<f", buf, offset)[0]
+        offset += 4
+        zone_flag = struct.unpack_from("<b", buf, offset)[0]
+        offset += 1
+        marshal_zones.append(
+            {
+                "zoneStart": zone_start,
+                "zoneFlag": zone_flag,
+                "flagName": FLAG_COLORS.get(zone_flag, f"Unknown ({zone_flag})"),
+                "isActive": zone_index < m_numMarshalZones,
+            }
+        )
 
-    m_safetyCarStatus = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_networkGame = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numWeatherForecastSamples = struct.unpack_from("<B", buf, offset)[0]; offset += 1
+    m_safetyCarStatus = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_networkGame = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numWeatherForecastSamples = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
 
     weather_forecast = []
     for sample_index in range(64):
@@ -81,63 +104,118 @@ def decode_session(buf: memoryview):
         if sample["isValidSample"]:
             weather_forecast.append(sample)
 
-    m_forecastAccuracy = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_aiDifficulty = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_seasonLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]; offset += 4
-    m_weekendLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]; offset += 4
-    m_sessionLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]; offset += 4
-    m_pitStopWindowIdealLap = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitStopWindowLatestLap = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitStopRejoinPosition = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_steeringAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_brakingAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_gearboxAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitReleaseAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_ERSAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_DRSAssist = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_dynamicRacingLine = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_dynamicRacingLineType = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_gameMode = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_ruleSet = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_timeOfDay = struct.unpack_from("<I", buf, offset)[0]; offset += 4
-    m_sessionLength = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_speedUnitsLeadPlayer = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_temperatureUnitsLeadPlayer = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_speedUnitsSecondaryPlayer = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_temperatureUnitsSecondaryPlayer = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numSafetyCarPeriods = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numVirtualSafetyCarPeriods = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numRedFlagPeriods = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_equalCarPerformance = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_recoveryMode = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_flashbackLimit = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_surfaceType = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_lowFuelMode = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_raceStarts = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_tyreTemperature = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitLaneTyreSim = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_carDamage = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_carDamageRate = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_collisions = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_collisionsOffForFirstLapOnly = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_mpUnsafePitRelease = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_mpOffForGriefing = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_cornerCuttingStringency = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_parcFermeRules = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_pitStopExperience = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_safetyCar = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_safetyCarExperience = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_formationLap = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_formationLapExperience = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_redFlags = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_affectsLicenceLevelSolo = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_affectsLicenceLevelMP = struct.unpack_from("<B", buf, offset)[0]; offset += 1
-    m_numSessionsInWeekend = struct.unpack_from("<B", buf, offset)[0]; offset += 1
+    m_forecastAccuracy = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_aiDifficulty = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_seasonLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]
+    offset += 4
+    m_weekendLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]
+    offset += 4
+    m_sessionLinkIdentifier = struct.unpack_from("<I", buf, offset)[0]
+    offset += 4
+    m_pitStopWindowIdealLap = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitStopWindowLatestLap = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitStopRejoinPosition = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_steeringAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_brakingAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_gearboxAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitReleaseAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_ERSAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_DRSAssist = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_dynamicRacingLine = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_dynamicRacingLineType = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_gameMode = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_ruleSet = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_timeOfDay = struct.unpack_from("<I", buf, offset)[0]
+    offset += 4
+    m_sessionLength = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_speedUnitsLeadPlayer = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_temperatureUnitsLeadPlayer = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_speedUnitsSecondaryPlayer = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_temperatureUnitsSecondaryPlayer = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numSafetyCarPeriods = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numVirtualSafetyCarPeriods = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numRedFlagPeriods = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_equalCarPerformance = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_recoveryMode = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_flashbackLimit = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_surfaceType = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_lowFuelMode = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_raceStarts = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_tyreTemperature = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitLaneTyreSim = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_carDamage = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_carDamageRate = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_collisions = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_collisionsOffForFirstLapOnly = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_mpUnsafePitRelease = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_mpOffForGriefing = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_cornerCuttingStringency = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_parcFermeRules = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_pitStopExperience = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_safetyCar = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_safetyCarExperience = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_formationLap = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_formationLapExperience = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_redFlags = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_affectsLicenceLevelSolo = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_affectsLicenceLevelMP = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
+    m_numSessionsInWeekend = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
     weekend_structure = list(struct.unpack_from("<12B", buf, offset))
     offset += struct.calcsize("<12B")
-    m_sector2LapDistanceStart = struct.unpack_from("<f", buf, offset)[0]; offset += 4
-    m_sector3LapDistanceStart = struct.unpack_from("<f", buf, offset)[0]; offset += 4
+    m_sector2LapDistanceStart = struct.unpack_from("<f", buf, offset)[0]
+    offset += 4
+    m_sector3LapDistanceStart = struct.unpack_from("<f", buf, offset)[0]
+    offset += 4
 
     return {
         "weather": m_weather,
@@ -150,7 +228,9 @@ def decode_session(buf: memoryview):
         "sessionType": m_sessionType,
         "sessionTypeName": SESSION_TYPES.get(m_sessionType, f"Unknown ({m_sessionType})"),
         "trackId": m_trackId,
-        "trackName": TRACK_NAMES.get(m_trackId, f"Unknown ({m_trackId})") if m_trackId >= 0 else "Unknown Track",
+        "trackName": TRACK_NAMES.get(m_trackId, f"Unknown ({m_trackId})")
+        if m_trackId >= 0
+        else "Unknown Track",
         "formula": m_formula,
         "formulaName": FORMULA_TYPES.get(m_formula, f"Unknown ({m_formula})"),
         "sessionTimeLeft": m_sessionTimeLeft,
@@ -163,7 +243,9 @@ def decode_session(buf: memoryview):
         "sliProNativeSupport": bool(m_sliProNativeSupport),
         "marshalZones": marshal_zones,
         "safetyCarStatus": m_safetyCarStatus,
-        "safetyCarStatusName": SAFETY_CAR_STATUS.get(m_safetyCarStatus, f"Unknown ({m_safetyCarStatus})"),
+        "safetyCarStatusName": SAFETY_CAR_STATUS.get(
+            m_safetyCarStatus, f"Unknown ({m_safetyCarStatus})"
+        ),
         "networkGame": bool(m_networkGame),
         "numMarshalZones": m_numMarshalZones,
         "weatherForecast": weather_forecast,
@@ -186,9 +268,13 @@ def decode_session(buf: memoryview):
         "ERSAssist": bool(m_ERSAssist),
         "DRSAssist": bool(m_DRSAssist),
         "dynamicRacingLine": m_dynamicRacingLine,
-        "dynamicRacingLineName": DYNAMIC_RACING_LINE.get(m_dynamicRacingLine, f"Unknown ({m_dynamicRacingLine})"),
+        "dynamicRacingLineName": DYNAMIC_RACING_LINE.get(
+            m_dynamicRacingLine, f"Unknown ({m_dynamicRacingLine})"
+        ),
         "dynamicRacingLineType": m_dynamicRacingLineType,
-        "dynamicRacingLineTypeName": DYNAMIC_RACING_LINE_TYPE.get(m_dynamicRacingLineType, f"Unknown ({m_dynamicRacingLineType})"),
+        "dynamicRacingLineTypeName": DYNAMIC_RACING_LINE_TYPE.get(
+            m_dynamicRacingLineType, f"Unknown ({m_dynamicRacingLineType})"
+        ),
         "gameMode": m_gameMode,
         "gameModeName": GAME_MODES.get(m_gameMode, f"Unknown ({m_gameMode})"),
         "ruleSet": m_ruleSet,
@@ -199,7 +285,9 @@ def decode_session(buf: memoryview):
         "speedUnitsLeadPlayer": "KPH" if m_speedUnitsLeadPlayer == 1 else "MPH",
         "temperatureUnitsLeadPlayer": "Fahrenheit" if m_temperatureUnitsLeadPlayer else "Celsius",
         "speedUnitsSecondaryPlayer": "KPH" if m_speedUnitsSecondaryPlayer == 1 else "MPH",
-        "temperatureUnitsSecondaryPlayer": "Fahrenheit" if m_temperatureUnitsSecondaryPlayer else "Celsius",
+        "temperatureUnitsSecondaryPlayer": "Fahrenheit"
+        if m_temperatureUnitsSecondaryPlayer
+        else "Celsius",
         "numSafetyCarPeriods": m_numSafetyCarPeriods,
         "numVirtualSafetyCarPeriods": m_numVirtualSafetyCarPeriods,
         "numRedFlagPeriods": m_numRedFlagPeriods,

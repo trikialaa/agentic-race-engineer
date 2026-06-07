@@ -1,15 +1,17 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from io import BytesIO
 import audioop
 import base64
 import json
 import logging
-import wave
-import requests
 import os
+import wave
+from io import BytesIO
 from pathlib import Path
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +24,7 @@ headers = {
 }
 
 
-class TTS():
-
+class TTS:
     SAMPLE_RATE = 48000
     CHANNELS = 1
     SAMPLE_WIDTH = 2
@@ -49,7 +50,9 @@ class TTS():
         def generator():
             yield from self._intro_stream()
             try:
-                with requests.post(INWORLD_BASE_URL, json=payload, headers=headers, stream=True, timeout=(5, 30)) as response:
+                with requests.post(
+                    INWORLD_BASE_URL, json=payload, headers=headers, stream=True, timeout=(5, 30)
+                ) as response:
                     response.raise_for_status()
                     for line in response.iter_lines(decode_unicode=True):
                         if not line.strip():
@@ -77,21 +80,15 @@ class TTS():
             with wave.open(str(self.INTRO_PATH), "rb") as wf:
                 data = wf.readframes(wf.getnframes())
                 if wf.getsampwidth() != self.SAMPLE_WIDTH:
-                    data = audioop.lin2lin(
-                        data, wf.getsampwidth(), self.SAMPLE_WIDTH
-                    )
+                    data = audioop.lin2lin(data, wf.getsampwidth(), self.SAMPLE_WIDTH)
                 if wf.getnchannels() != self.CHANNELS:
                     if wf.getnchannels() == 2 and self.CHANNELS == 1:
-                        data = audioop.tomono(
-                            data, self.SAMPLE_WIDTH, 0.5, 0.5
-                        )
+                        data = audioop.tomono(data, self.SAMPLE_WIDTH, 0.5, 0.5)
                     elif wf.getsampwidth() and wf.getnchannels() > 1:
                         sample_stride = wf.getsampwidth() * wf.getnchannels()
                         mono = bytearray()
                         for pos in range(0, len(data), sample_stride):
-                            mono.extend(
-                                data[pos : pos + wf.getsampwidth()]
-                            )
+                            mono.extend(data[pos : pos + wf.getsampwidth()])
                         data = bytes(mono)
                 if wf.getframerate() != self.SAMPLE_RATE:
                     data, _ = audioop.ratecv(
@@ -116,7 +113,7 @@ class TTS():
                 "sample_rate_hertz": self.SAMPLE_RATE,
             },
             "temperature": 0.55,
-            "model_id": str(os.getenv("INWORLD_MODEL"))
+            "model_id": str(os.getenv("INWORLD_MODEL")),
         }
 
     def _trim_wave_header(self, audio_chunk: bytes) -> bytes:
@@ -125,10 +122,10 @@ class TTS():
         # Walk sub-chunks to find the actual 'data' offset instead of assuming 44 bytes.
         offset = 12  # skip RIFF(4) + file-size(4) + WAVE(4)
         while offset + 8 <= len(audio_chunk):
-            chunk_id = audio_chunk[offset:offset + 4]
-            chunk_size = int.from_bytes(audio_chunk[offset + 4:offset + 8], "little")
+            chunk_id = audio_chunk[offset : offset + 4]
+            chunk_size = int.from_bytes(audio_chunk[offset + 4 : offset + 8], "little")
             if chunk_id == b"data":
-                return audio_chunk[offset + 8:]
+                return audio_chunk[offset + 8 :]
             offset += 8 + chunk_size
         return audio_chunk[44:]  # fallback: standard 44-byte header
 

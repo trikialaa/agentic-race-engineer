@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.live_data_engine.capture import F1TelemetryCapture
@@ -16,56 +16,64 @@ class RaceStateView:
     # ── Private snapshot helpers ───────────────────────────────────
 
     def _display_name_from_participants(
-        self, participants: List[Dict[str, Any]], car_index: Optional[int]
+        self, participants: list[dict[str, Any]], car_index: int | None
     ) -> str:
         if car_index is None:
             return "Unknown"
         if 0 <= car_index < len(participants):
             participant = participants[car_index]
-            return participant.get("displayName") or participant.get("driverName") or f"Car {car_index}"
+            return (
+                participant.get("displayName")
+                or participant.get("driverName")
+                or f"Car {car_index}"
+            )
         return f"Car {car_index}"
 
-    def _find_car_index_by_name(self, name: str, participants: List[Dict[str, Any]]) -> Optional[int]:
+    def _find_car_index_by_name(self, name: str, participants: list[dict[str, Any]]) -> int | None:
         if not name:
             return None
         needle = name.strip().lower()
         if not needle:
             return None
         for participant in participants:
-            candidate = (participant.get("displayName") or participant.get("driverName") or "").lower()
+            candidate = (
+                participant.get("displayName") or participant.get("driverName") or ""
+            ).lower()
             if needle in candidate:
                 return participant.get("carIndex")
         return None
 
     def _collect_penalty_events(
-        self, history: List[Dict[str, Any]], participants: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, history: list[dict[str, Any]], participants: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         penalties = []
         for entry in history:
             if entry.get("code") != "PENA":
                 continue
             details = entry.get("details", {})
             driver_idx = details.get("vehicleIdx")
-            penalties.append({
-                "time": entry.get("time"),
-                "driverName": self._display_name_from_participants(participants, driver_idx),
-                "penaltyType": details.get("penaltyTypeName"),
-                "infringementType": details.get("infringementTypeName"),
-                "lapNum": details.get("lapNum"),
-                "placesGained": details.get("placesGained"),
-                "raw": details,
-            })
+            penalties.append(
+                {
+                    "time": entry.get("time"),
+                    "driverName": self._display_name_from_participants(participants, driver_idx),
+                    "penaltyType": details.get("penaltyTypeName"),
+                    "infringementType": details.get("infringementTypeName"),
+                    "lapNum": details.get("lapNum"),
+                    "placesGained": details.get("placesGained"),
+                    "raw": details,
+                }
+            )
         return penalties
 
-    def _session_snapshot(self) -> Dict[str, Any]:
+    def _session_snapshot(self) -> dict[str, Any]:
         with self._cap.lock:
             return dict(self._cap.data.get("session", {}))
 
-    def _session_snapshot_with_timestamp(self) -> Tuple[Dict[str, Any], float]:
+    def _session_snapshot_with_timestamp(self) -> tuple[dict[str, Any], float]:
         with self._cap.lock:
             return dict(self._cap.data.get("session", {})), self._cap.last_update
 
-    def _lap_participant_snapshot(self) -> Tuple[int, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _lap_participant_snapshot(self) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
         with self._cap.lock:
             return (
                 self._cap.player_car_index,
@@ -73,25 +81,31 @@ class RaceStateView:
                 list(self._cap.data.get("participants", {}).get("participants", [])),
             )
 
-    def _car_arrays_with_timestamp(self, *pairs: Tuple[str, str]) -> Tuple[int, List[List[Any]], float]:
+    def _car_arrays_with_timestamp(
+        self, *pairs: tuple[str, str]
+    ) -> tuple[int, list[list[Any]], float]:
         with self._cap.lock:
             idx = self._cap.player_car_index
-            arrays = [list(self._cap.data.get(category, {}).get(key, [])) for category, key in pairs]
+            arrays = [
+                list(self._cap.data.get(category, {}).get(key, [])) for category, key in pairs
+            ]
             timestamp = self._cap.last_update
         return idx, arrays, timestamp
 
-    def _car_arrays(self, *pairs: Tuple[str, str]) -> Tuple[int, List[List[Any]]]:
+    def _car_arrays(self, *pairs: tuple[str, str]) -> tuple[int, list[list[Any]]]:
         idx, arrays, _ = self._car_arrays_with_timestamp(*pairs)
         return idx, arrays
 
-    def _event_history_snapshot(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _event_history_snapshot(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         with self._cap.lock:
             return (
                 list(self._cap.data.get("event", {}).get("eventHistory", [])),
                 list(self._cap.data.get("participants", {}).get("participants", [])),
             )
 
-    def _get_car_id_by_position(self, laps: List[Dict[str, Any]], position: Optional[int]) -> Optional[int]:
+    def _get_car_id_by_position(
+        self, laps: list[dict[str, Any]], position: int | None
+    ) -> int | None:
         if position is None:
             return None
         for idx, lap in enumerate(laps):
@@ -101,14 +115,18 @@ class RaceStateView:
 
     # ── Session helpers ────────────────────────────────────────────
 
-    def get_player_presence_state(self, stale_after_seconds: float = 3.0, confirm_samples: int = 2) -> Dict[str, Any]:
+    def get_player_presence_state(
+        self, stale_after_seconds: float = 3.0, confirm_samples: int = 2
+    ) -> dict[str, Any]:
         now = time.time()
         with self._cap.lock:
             session = dict(self._cap.data.get("session", {}))
             lobby = dict(self._cap.data.get("lobby_info", {}))
             laps = list(self._cap.data.get("lap_data", {}).get("laps", []))
             last_update = self._cap.last_update
-            last_header = dict(self._cap.last_header) if isinstance(self._cap.last_header, dict) else None
+            last_header = (
+                dict(self._cap.last_header) if isinstance(self._cap.last_header, dict) else None
+            )
             packet_total = sum(self._cap.packet_counts.values()) + self._cap.unknown_packets
             player_idx = self._cap.player_car_index
 
@@ -142,9 +160,15 @@ class RaceStateView:
             lap = laps[player_idx] if isinstance(laps[player_idx], dict) else {}
             current_lap = lap.get("currentLapNum")
             car_position = lap.get("carPosition")
-            has_live_lap_signal = current_lap is not None or (isinstance(car_position, int) and car_position > 0)
+            has_live_lap_signal = current_lap is not None or (
+                isinstance(car_position, int) and car_position > 0
+            )
 
-        in_game = has_recent_packets and has_session_identity and (has_game_mode or has_track or has_live_lap_signal)
+        in_game = (
+            has_recent_packets
+            and has_session_identity
+            and (has_game_mode or has_track or has_live_lap_signal)
+        )
         in_lobby = has_recent_packets and not in_game and lobby_player_count > 0
         detected_state = "in_game" if in_game else ("lobby" if in_lobby else "neither")
 
@@ -209,13 +233,15 @@ class RaceStateView:
             "pendingTransition": {
                 "candidateState": candidate_state,
                 "candidateCount": candidate_count,
-                "remainingSamples": max(0, confirm_samples - candidate_count) if candidate_state else 0,
+                "remainingSamples": max(0, confirm_samples - candidate_count)
+                if candidate_state
+                else 0,
             },
             "lastTransition": last_transition,
             "lastHeader": last_header,
         }
 
-    def get_current_weather(self) -> Dict[str, Any]:
+    def get_current_weather(self) -> dict[str, Any]:
         session, last_update = self._session_snapshot_with_timestamp()
         return {
             "weatherName": session.get("weatherName", "Unknown"),
@@ -224,7 +250,7 @@ class RaceStateView:
             "lastUpdate": last_update,
         }
 
-    def get_weather_forecast(self) -> Dict[str, Any]:
+    def get_weather_forecast(self) -> dict[str, Any]:
         session = self._session_snapshot()
         forecast_samples = session.get("forecastLatest")
         if forecast_samples is None:
@@ -254,7 +280,7 @@ class RaceStateView:
             "latestHistory": latest_history,
         }
 
-    def get_total_laps(self) -> Optional[int]:
+    def get_total_laps(self) -> int | None:
         session = self._session_snapshot()
         return session.get("totalLaps")
 
@@ -262,29 +288,29 @@ class RaceStateView:
         session = self._session_snapshot()
         return session.get("trackName") or "Unknown"
 
-    def get_safety_car_status(self) -> Optional[str]:
+    def get_safety_car_status(self) -> str | None:
         session = self._session_snapshot()
         return session.get("safetyCarStatusName")
 
-    def get_pitstop_window_recommendation(self) -> Dict[str, Optional[int]]:
+    def get_pitstop_window_recommendation(self) -> dict[str, int | None]:
         session = self._session_snapshot()
         return {
             "idealLap": session.get("pitStopWindowIdealLap"),
             "latestLap": session.get("pitStopWindowLatestLap"),
         }
 
-    def get_pitstop_rejoin_position(self) -> Optional[int]:
+    def get_pitstop_rejoin_position(self) -> int | None:
         session = self._session_snapshot()
         return session.get("pitStopRejoinPosition")
 
     # ── Lap helpers ────────────────────────────────────────────────
 
-    def get_current_lap(self) -> Optional[int]:
+    def get_current_lap(self) -> int | None:
         car_index, laps, _ = self._lap_participant_snapshot()
         lap = laps[car_index] if 0 <= car_index < len(laps) else {}
         return lap.get("currentLapNum")
 
-    def get_num_remaining_laps(self) -> Optional[int]:
+    def get_num_remaining_laps(self) -> int | None:
         car_index, laps, _ = self._lap_participant_snapshot()
         session = self._session_snapshot()
         lap = laps[car_index] if 0 <= car_index < len(laps) else {}
@@ -295,7 +321,7 @@ class RaceStateView:
         remaining = total - current
         return remaining if remaining >= 0 else 0
 
-    def get_teammate_position(self) -> Optional[Dict[str, Any]]:
+    def get_teammate_position(self) -> dict[str, Any] | None:
         player_idx, laps, participants = self._lap_participant_snapshot()
         teammate = next(
             (p for p in participants if p.get("myTeam") and p.get("carIndex") != player_idx),
@@ -312,7 +338,7 @@ class RaceStateView:
             "currentLap": lap.get("currentLapNum"),
         }
 
-    def get_player_position_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_player_position_by_name(self, name: str) -> dict[str, Any] | None:
         _, laps, participants = self._lap_participant_snapshot()
         car_index = self._find_car_index_by_name(name, participants)
         if car_index is None or car_index >= len(laps):
@@ -325,27 +351,29 @@ class RaceStateView:
             "currentLap": lap.get("currentLapNum"),
         }
 
-    def get_all_grid_positions(self) -> List[Dict[str, Any]]:
+    def get_all_grid_positions(self) -> list[dict[str, Any]]:
         _, laps, participants = self._lap_participant_snapshot()
         grid = []
         for idx, lap in enumerate(laps):
             position = lap.get("carPosition")
             if position is None or position == 0:
                 continue
-            grid.append({
-                "position": position,
-                "driverName": self._display_name_from_participants(participants, idx),
-                "carIndex": idx,
-            })
+            grid.append(
+                {
+                    "position": position,
+                    "driverName": self._display_name_from_participants(participants, idx),
+                    "carIndex": idx,
+                }
+            )
         grid.sort(key=lambda entry: entry["position"] or 999)
         return grid
 
-    def get_safety_car_delta(self) -> Optional[float]:
+    def get_safety_car_delta(self) -> float | None:
         car_index, laps, _ = self._lap_participant_snapshot()
         lap = laps[car_index] if 0 <= car_index < len(laps) else {}
         return lap.get("safetyCarDelta")
 
-    def get_player_name_by_position(self, position: int) -> Optional[str]:
+    def get_player_name_by_position(self, position: int) -> str | None:
         _, laps, participants = self._lap_participant_snapshot()
         car_idx = self._get_car_id_by_position(laps, position)
         if car_idx is None:
@@ -354,7 +382,7 @@ class RaceStateView:
 
     # ── Event helpers ──────────────────────────────────────────────
 
-    def get_fastest_lap_data(self) -> Optional[Dict[str, Any]]:
+    def get_fastest_lap_data(self) -> dict[str, Any] | None:
         history, participants = self._event_history_snapshot()
         fastest = next((evt for evt in history if evt.get("code") == "FTLP"), None)
         if not fastest:
@@ -368,7 +396,7 @@ class RaceStateView:
             "time": fastest.get("time"),
         }
 
-    def get_drs_status(self) -> Dict[str, Any]:
+    def get_drs_status(self) -> dict[str, Any]:
         car_index, arrays = self._car_arrays(
             ("car_telemetry", "carTelemetry"),
             ("car_status", "carStatus"),
@@ -383,7 +411,7 @@ class RaceStateView:
             "drsFault": stat.get("drsFault"),
         }
 
-    def get_session_info(self) -> Dict[str, Any]:
+    def get_session_info(self) -> dict[str, Any]:
         session, last_update = self._session_snapshot_with_timestamp()
         return {
             "trackName": session.get("trackName", "Unknown"),
@@ -397,7 +425,7 @@ class RaceStateView:
             "lastUpdate": last_update,
         }
 
-    def get_race_standings(self, limit: int = 22) -> List[Dict[str, Any]]:
+    def get_race_standings(self, limit: int = 22) -> list[dict[str, Any]]:
         standings = []
         player_idx, lap_data, participants = self._lap_participant_snapshot()
         for i in range(min(len(participants), len(lap_data), 22)):
@@ -407,7 +435,9 @@ class RaceStateView:
                 driver_info = {
                     "carIndex": i,
                     "position": lap.get("carPosition", 0),
-                    "driverName": participant.get("displayName", participant.get("name", "Unknown")),
+                    "driverName": participant.get(
+                        "displayName", participant.get("name", "Unknown")
+                    ),
                     "teamName": participant.get("teamName", "Unknown"),
                     "currentLap": lap.get("currentLapNum", 0),
                     "lastLapTime": lap.get("lastLapTimeFormatted", "0:00.000"),
@@ -423,7 +453,7 @@ class RaceStateView:
         standings.sort(key=lambda x: x["position"] if x["position"] > 0 else 999)
         return standings[:limit]
 
-    def get_player_telemetry(self) -> Dict[str, Any]:
+    def get_player_telemetry(self) -> dict[str, Any]:
         car_index, arrays, last_update = self._car_arrays_with_timestamp(
             ("car_telemetry", "carTelemetry"),
             ("car_status", "carStatus"),
@@ -480,7 +510,10 @@ class RaceStateView:
             dmg = damage_data[car_index]
             damage = {
                 "tyreWear": dmg.get("m_tyresWear", [0, 0, 0, 0]),
-                "frontWingDamage": [dmg.get("m_frontLeftWingDamage", 0), dmg.get("m_frontRightWingDamage", 0)],
+                "frontWingDamage": [
+                    dmg.get("m_frontLeftWingDamage", 0),
+                    dmg.get("m_frontRightWingDamage", 0),
+                ],
                 "rearWingDamage": dmg.get("m_rearWingDamage", 0),
                 "floorDamage": dmg.get("m_floorDamage", 0),
                 "diffuserDamage": dmg.get("m_diffuserDamage", 0),
@@ -494,24 +527,24 @@ class RaceStateView:
             "lastUpdate": last_update,
         }
 
-    def get_recent_events(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_recent_events(self, limit: int = 5) -> list[dict[str, Any]]:
         events, _ = self._event_history_snapshot()
         return events[:limit]
 
-    def get_driver_by_position(self, position: int) -> Optional[Dict[str, Any]]:
+    def get_driver_by_position(self, position: int) -> dict[str, Any] | None:
         standings = self.get_race_standings()
         return next((d for d in standings if d["position"] == position), None)
 
-    def get_driver_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_driver_by_name(self, name: str) -> dict[str, Any] | None:
         standings = self.get_race_standings()
         name_lower = name.lower()
         return next((d for d in standings if name_lower in d["driverName"].lower()), None)
 
-    def get_current_position(self) -> Optional[Dict[str, Any]]:
+    def get_current_position(self) -> dict[str, Any] | None:
         standings = self.get_race_standings()
         return next((s for s in standings if s.get("isPlayer")), None)
 
-    def _gap_to_car(self, target_car_index: int) -> Optional[Dict[str, Any]]:
+    def _gap_to_car(self, target_car_index: int) -> dict[str, Any] | None:
         player_idx, laps, _ = self._lap_participant_snapshot()
         _, telemetry_arrays = self._car_arrays(("car_telemetry", "carTelemetry"))
         tel = telemetry_arrays[0] if telemetry_arrays else []
@@ -525,7 +558,11 @@ class RaceStateView:
         gap_meters = target_total - player_total
         try:
             p_speed = (tel[player_idx].get("speedKph") or 0) / 3.6 if player_idx < len(tel) else 0
-            t_speed = (tel[target_car_index].get("speedKph") or 0) / 3.6 if target_car_index < len(tel) else 0
+            t_speed = (
+                (tel[target_car_index].get("speedKph") or 0) / 3.6
+                if target_car_index < len(tel)
+                else 0
+            )
             avg_speed = max((p_speed + t_speed) / 2.0, 0.1)
             gap_seconds = gap_meters / avg_speed
             # Discard implausible values caused by totalDistance resetting at lap crossings.
@@ -540,19 +577,19 @@ class RaceStateView:
             "gapSecondsApprox": gap_seconds,
         }
 
-    def get_gap_to_driver_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_gap_to_driver_by_name(self, name: str) -> dict[str, Any] | None:
         driver = self.get_driver_by_name(name)
         if not driver:
             return None
         return self._gap_to_car(driver["carIndex"])
 
-    def get_gap_to_driver_by_position(self, position: int) -> Optional[Dict[str, Any]]:
+    def get_gap_to_driver_by_position(self, position: int) -> dict[str, Any] | None:
         driver = self.get_driver_by_position(position)
         if not driver:
             return None
         return self._gap_to_car(driver["carIndex"])
 
-    def get_gap_to_driver_in_front(self) -> Optional[Dict[str, Any]]:
+    def get_gap_to_driver_in_front(self) -> dict[str, Any] | None:
         player = self.get_current_position()
         if not player:
             return None
@@ -561,7 +598,7 @@ class RaceStateView:
             return None
         return self.get_gap_to_driver_by_position(pos - 1)
 
-    def get_gap_to_driver_in_back(self) -> Optional[Dict[str, Any]]:
+    def get_gap_to_driver_in_back(self) -> dict[str, Any] | None:
         player = self.get_current_position()
         if not player:
             return None
@@ -570,7 +607,7 @@ class RaceStateView:
             return None
         return self.get_gap_to_driver_by_position(pos + 1)
 
-    def get_fuel_status(self) -> Dict[str, Any]:
+    def get_fuel_status(self) -> dict[str, Any]:
         car_index, arrays = self._car_arrays(("car_status", "carStatus"))
         status_data = arrays[0]
         status = status_data[car_index] if car_index < len(status_data) else {}
@@ -582,7 +619,7 @@ class RaceStateView:
             "fuelCritical": status.get("fuelCritical"),
         }
 
-    def get_ers_status(self) -> Dict[str, Any]:
+    def get_ers_status(self) -> dict[str, Any]:
         car_index, arrays = self._car_arrays(("car_status", "carStatus"))
         status_data = arrays[0]
         status = status_data[car_index] if car_index < len(status_data) else {}
@@ -592,7 +629,7 @@ class RaceStateView:
             "ersDeployModeName": status.get("ersDeployModeName"),
         }
 
-    def get_tyres_status(self) -> Dict[str, Any]:
+    def get_tyres_status(self) -> dict[str, Any]:
         car_index, arrays = self._car_arrays(
             ("car_status", "carStatus"),
             ("car_telemetry", "carTelemetry"),
@@ -604,7 +641,8 @@ class RaceStateView:
         dmg = dmg_data[car_index] if car_index < len(dmg_data) else {}
         return {
             "carIndex": car_index,
-            "compound": status.get("visualTyreCompoundName") or status.get("actualTyreCompoundName"),
+            "compound": status.get("visualTyreCompoundName")
+            or status.get("actualTyreCompoundName"),
             "ageLaps": status.get("tyresAgeLaps"),
             "tyresOld": status.get("tyresOld"),
             "surfaceTemp": tel.get("tyresSurfaceTemperature"),
@@ -613,26 +651,31 @@ class RaceStateView:
             "wear": dmg.get("m_tyresWear"),
         }
 
-    def get_damage_status(self) -> Dict[str, Any]:
+    def get_damage_status(self) -> dict[str, Any]:
         car_index, arrays = self._car_arrays(("car_damage", "carDamage"))
         dmg_data = arrays[0]
         dmg = dmg_data[car_index] if car_index < len(dmg_data) else {}
         return {
             "carIndex": car_index,
             "tyreWear": dmg.get("m_tyresWear"),
-            "frontWingDamage": [dmg.get("m_frontLeftWingDamage"), dmg.get("m_frontRightWingDamage")],
+            "frontWingDamage": [
+                dmg.get("m_frontLeftWingDamage"),
+                dmg.get("m_frontRightWingDamage"),
+            ],
             "rearWingDamage": dmg.get("m_rearWingDamage"),
             "floorDamage": dmg.get("m_floorDamage"),
             "diffuserDamage": dmg.get("m_diffuserDamage"),
             "drsFault": dmg.get("m_drsFault"),
         }
 
-    def get_capture_stats(self) -> Dict[str, Any]:
+    def get_capture_stats(self) -> dict[str, Any]:
         with self._cap.lock:
             counts = dict(self._cap.packet_counts)
             unknown = self._cap.unknown_packets
             errors = self._cap.error_count
-            last_hdr = dict(self._cap.last_header) if isinstance(self._cap.last_header, dict) else None
+            last_hdr = (
+                dict(self._cap.last_header) if isinstance(self._cap.last_header, dict) else None
+            )
             last_err = self._cap.last_error
         return {
             "packetCounts": counts,
@@ -643,60 +686,60 @@ class RaceStateView:
             "formatMismatch": self._cap.format_mismatch,
         }
 
-    def get_motion_ex(self) -> Dict[str, Any]:
+    def get_motion_ex(self) -> dict[str, Any]:
         with self._cap.lock:
             return dict(self._cap.data.get("motion_ex") or {})
 
-    def get_tyre_sets(self) -> Optional[Dict[str, Any]]:
+    def get_tyre_sets(self) -> dict[str, Any] | None:
         with self._cap.lock:
             return self._cap.data.get("tyre_sets", {}).get("latest")
 
-    def get_time_trial_data(self) -> Dict[str, Any]:
+    def get_time_trial_data(self) -> dict[str, Any]:
         with self._cap.lock:
             return dict(self._cap.data.get("time_trial") or {})
 
-    def get_lap_positions(self) -> Dict[str, Any]:
+    def get_lap_positions(self) -> dict[str, Any]:
         with self._cap.lock:
             return dict(self._cap.data.get("lap_positions") or {})
 
-    def get_car_telemetry_history(self, car_index: int, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_car_telemetry_history(self, car_index: int, limit: int = 50) -> list[dict[str, Any]]:
         with self._cap.lock:
             dq = []
             if 0 <= car_index < len(self._cap.car_history.car_telemetry):
                 dq = list(self._cap.car_history.car_telemetry[car_index])
         return list(reversed(dq[-limit:]))
 
-    def get_car_status_changes(self, car_index: int, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_car_status_changes(self, car_index: int, limit: int = 50) -> list[dict[str, Any]]:
         with self._cap.lock:
             dq = []
             if 0 <= car_index < len(self._cap.car_history.car_status):
                 dq = list(self._cap.car_history.car_status[car_index])
         return list(reversed(dq[-limit:]))
 
-    def get_car_damage_events(self, car_index: int, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_car_damage_events(self, car_index: int, limit: int = 50) -> list[dict[str, Any]]:
         with self._cap.lock:
             dq = []
             if 0 <= car_index < len(self._cap.car_history.car_damage):
                 dq = list(self._cap.car_history.car_damage[car_index])
         return list(reversed(dq[-limit:]))
 
-    def get_car_lap_history(self, car_index: int, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_car_lap_history(self, car_index: int, limit: int = 50) -> list[dict[str, Any]]:
         with self._cap.lock:
             laps = self._cap.data.get("lap_data", {}).get("history", [])
             entries = laps[car_index] if 0 <= car_index < len(laps) else []
         return entries[:limit]
 
-    def get_session_changes(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_session_changes(self, limit: int = 50) -> list[dict[str, Any]]:
         session = self._session_snapshot()
         changes = session.get("changes", [])
         return changes[:limit]
 
-    def get_session_forecast(self, limit: int = 10) -> Dict[str, Any]:
+    def get_session_forecast(self, limit: int = 10) -> dict[str, Any]:
         session = self._session_snapshot()
         latest = session.get("forecastLatest")
         history = session.get("forecastHistory") or []
         return {"latest": latest, "history": history[:limit]}
 
-    def get_safety_periods(self) -> List[Dict[str, Any]]:
+    def get_safety_periods(self) -> list[dict[str, Any]]:
         session = self._session_snapshot()
         return session.get("safetyPeriods", [])

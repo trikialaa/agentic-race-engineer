@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 
 def _strip_nulls(obj: Any) -> Any:
@@ -15,7 +15,7 @@ def _strip_nulls(obj: Any) -> Any:
     return obj
 
 
-def _round(value: Any, digits: int = 1) -> Optional[float]:
+def _round(value: Any, digits: int = 1) -> float | None:
     if value is None:
         return None
     try:
@@ -31,7 +31,7 @@ def _clock_now() -> str:
     return time.strftime("%H:%M:%S", local) + f".{ms:03d}"
 
 
-def _parse_lap_time_seconds(value: Any) -> Optional[float]:
+def _parse_lap_time_seconds(value: Any) -> float | None:
     if not isinstance(value, str):
         return None
     text = value.strip()
@@ -48,7 +48,7 @@ def _parse_lap_time_seconds(value: Any) -> Optional[float]:
         return None
 
 
-def _normalize_tyre_compound(compound: Any) -> Optional[str]:
+def _normalize_tyre_compound(compound: Any) -> str | None:
     if not isinstance(compound, str) or not compound.strip():
         return None
     normalized = compound.strip().lower()
@@ -83,7 +83,7 @@ def _pit_status_value(value: Any) -> str:
     return str(value)
 
 
-def _abs_round(value: Any, digits: int = 2) -> Optional[float]:
+def _abs_round(value: Any, digits: int = 2) -> float | None:
     rounded = _round(value, digits)
     if rounded is None:
         return None

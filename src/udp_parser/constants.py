@@ -5,7 +5,7 @@ WEATHER_TYPES = {
     2: "Overcast",
     3: "Light Rain",
     4: "Heavy Rain",
-    5: "Storm"
+    5: "Storm",
 }
 
 # Session types
@@ -28,7 +28,7 @@ SESSION_TYPES = {
     15: "Race",
     16: "Race 2",
     17: "Feature Race",
-    18: "Time Trial"
+    18: "Time Trial",
 }
 
 # Surface types
@@ -44,7 +44,7 @@ SURFACE_TYPES = {
     8: "Water",
     9: "Cobblestone",
     10: "Metal",
-    11: "Ridged"
+    11: "Ridged",
 }
 
 # Button flags
@@ -93,35 +93,17 @@ TYRE_COMPOUNDS = {
     21: "C0",
     22: "C6",
     7: "Inter",
-    8: "Wet"
+    8: "Wet",
 }
 
 # Visual tyre compounds shown in-game
-VISUAL_TYRE_COMPOUNDS = {
-    16: "Soft",
-    17: "Medium",
-    18: "Hard",
-    7: "Inter",
-    8: "Wet"
-}
+VISUAL_TYRE_COMPOUNDS = {16: "Soft", 17: "Medium", 18: "Hard", 7: "Inter", 8: "Wet"}
 
 # ERS deployment modes
-ERS_DEPLOYMENT_MODES = {
-    0: "None",
-    1: "Medium",
-    2: "Hotlap",
-    3: "Overtake"
-}
+ERS_DEPLOYMENT_MODES = {0: "None", 1: "Medium", 2: "Hotlap", 3: "Overtake"}
 
 # Flag colors
-FLAG_COLORS = {
-    -1: "Invalid/Unknown",
-    0: "None",
-    1: "Green",
-    2: "Blue",
-    3: "Yellow",
-    4: "Red"
-}
+FLAG_COLORS = {-1: "Invalid/Unknown", 0: "None", 1: "Green", 2: "Blue", 3: "Yellow", 4: "Red"}
 
 # Result status
 RESULT_STATUS = {
@@ -132,17 +114,11 @@ RESULT_STATUS = {
     4: "DNF",
     5: "DSQ",
     6: "Not Classified",
-    7: "Retired"
+    7: "Retired",
 }
 
 # Driver status
-DRIVER_STATUS = {
-    0: "In Garage",
-    1: "Flying Lap",
-    2: "In Lap",
-    3: "Out Lap",
-    4: "On Track"
-}
+DRIVER_STATUS = {0: "In Garage", 1: "Flying Lap", 2: "In Lap", 3: "Out Lap", 4: "On Track"}
 
 # Max ERS energy in Joules
 MAX_ERS_ENERGY = 4000000
@@ -150,7 +126,7 @@ MAX_ERS_ENERGY = 4000000
 # Team IDs (Complete list from F1 25 docs)
 TEAM_NAMES = {
     0: "Mercedes",
-    1: "Ferrari", 
+    1: "Ferrari",
     2: "Red Bull Racing",
     3: "Williams",
     4: "Aston Martin",
@@ -185,7 +161,7 @@ TEAM_NAMES = {
     191: "RB '24",
     192: "Haas '24",
     193: "McLaren '24",
-    194: "Sauber '24"
+    194: "Sauber '24",
 }
 
 # Track IDs
@@ -225,7 +201,7 @@ TRACK_NAMES = {
     32: "Losail",
     39: "Silverstone (Reverse)",
     40: "Austria (Reverse)",
-    41: "Zandvoort (Reverse)"
+    41: "Zandvoort (Reverse)",
 }
 
 # Nationality IDs
@@ -319,7 +295,7 @@ NATIONALITY_NAMES = {
     87: "Vietnamese",
     88: "Algerian",
     89: "Bosnian",
-    90: "Filipino"
+    90: "Filipino",
 }
 
 # Game Mode IDs (F1 25)
@@ -335,16 +311,11 @@ GAME_MODES = {
     29: "Career '25 Online",
     30: "Challenge Career '25",
     75: "Story Mode (APXGP)",
-    127: "Benchmark"
+    127: "Benchmark",
 }
 
 # Ruleset IDs
-RULESETS = {
-    0: "Practice & Qualifying",
-    1: "Race",
-    2: "Time Trial",
-    12: "Elimination"
-}
+RULESETS = {0: "Practice & Qualifying", 1: "Race", 2: "Time Trial", 12: "Elimination"}
 
 # Penalty Types
 PENALTY_TYPES = {
@@ -365,7 +336,7 @@ PENALTY_TYPES = {
     14: "This and previous lap invalidated",
     15: "This and previous lap invalidated without reason",
     16: "Retired",
-    17: "Black flag timer"
+    17: "Black flag timer",
 }
 
 # Infringement Types
@@ -424,7 +395,7 @@ INFRINGEMENT_TYPES = {
     51: "Retry penalty",
     52: "Illegal time gain",
     53: "Mandatory pitstop",
-    54: "Attribute assigned"
+    54: "Attribute assigned",
 }
 
 # Event String Codes
@@ -449,29 +420,21 @@ EVENT_CODES = {
     "RDFL": "Red Flag",
     "OVTK": "Overtake",
     "SCAR": "Safety Car",
-    "COLL": "Collision"
+    "COLL": "Collision",
 }
 
 # Pit Status
-PIT_STATUS = {
-    0: "None",
-    1: "Pitting",
-    2: "In pit area"
-}
+PIT_STATUS = {0: "None", 1: "Pitting", 2: "In pit area"}
 
 # Sector numbers
-SECTORS = {
-    0: "Sector 1",
-    1: "Sector 2", 
-    2: "Sector 3"
-}
+SECTORS = {0: "Sector 1", 1: "Sector 2", 2: "Sector 3"}
 
 # Safety Car Status
 SAFETY_CAR_STATUS = {
     0: "No safety car",
     1: "Full safety car",
     2: "Virtual safety car",
-    3: "Formation lap"
+    3: "Formation lap",
 }
 
 # Formula types
@@ -483,7 +446,7 @@ FORMULA_TYPES = {
     4: "Beta",
     5: "Supercars",
     6: "Esports",
-    7: "F2 2021"
+    7: "F2 2021",
 }
 
 # Session Length
@@ -494,7 +457,7 @@ SESSION_LENGTH = {
     4: "Medium",
     5: "Medium Long",
     6: "Long",
-    7: "Full"
+    7: "Full",
 }
 
 SESSION_WATCH_KEYS = [
@@ -672,66 +635,31 @@ SESSION_MARSHAL_KEYS = [
 ]
 
 # Fuel Mix
-FUEL_MIX = {
-    0: "Lean",
-    1: "Standard",
-    2: "Rich",
-    3: "Max"
-}
+FUEL_MIX = {0: "Lean", 1: "Standard", 2: "Rich", 3: "Max"}
 
 # Traction Control
-TRACTION_CONTROL = {
-    0: "Off",
-    1: "Medium",
-    2: "Full"
-}
+TRACTION_CONTROL = {0: "Off", 1: "Medium", 2: "Full"}
 
 # Anti-lock Brakes
-ANTI_LOCK_BRAKES = {
-    0: "Off",
-    1: "On"
-}
+ANTI_LOCK_BRAKES = {0: "Off", 1: "On"}
 
 # DRS Status
-DRS_STATUS = {
-    0: "Off",
-    1: "On"
-}
+DRS_STATUS = {0: "Off", 1: "On"}
 
 # Ready Status (Lobby)
-READY_STATUS = {
-    0: "Not ready",
-    1: "Ready",
-    2: "Spectating"
-}
+READY_STATUS = {0: "Not ready", 1: "Ready", 2: "Spectating"}
 
 # Assist levels
-ASSIST_LEVELS = {
-    0: "Off",
-    1: "Low",
-    2: "Medium", 
-    3: "High"
-}
+ASSIST_LEVELS = {0: "Off", 1: "Low", 2: "Medium", 3: "High"}
 
 # Gearbox Assist
-GEARBOX_ASSIST = {
-    1: "Manual",
-    2: "Manual & suggested gear",
-    3: "Auto"
-}
+GEARBOX_ASSIST = {1: "Manual", 2: "Manual & suggested gear", 3: "Auto"}
 
 # Dynamic Racing Line
-DYNAMIC_RACING_LINE = {
-    0: "Off",
-    1: "Corners only",
-    2: "Full"
-}
+DYNAMIC_RACING_LINE = {0: "Off", 1: "Corners only", 2: "Full"}
 
 # Dynamic Racing Line Type
-DYNAMIC_RACING_LINE_TYPE = {
-    0: "2D",
-    1: "3D"
-}
+DYNAMIC_RACING_LINE_TYPE = {0: "2D", 1: "3D"}
 
 # Driver IDs (Complete list from F1 25 docs)
 DRIVER_NAMES = {
@@ -887,7 +815,7 @@ DRIVER_NAMES = {
     173: "Matias Zagazeta",
     174: "Nikola Tsolov",
     175: "Tim Tramnitz",
-    185: "Luca Cortez"
+    185: "Luca Cortez",
 }
 
 # Packet IDs
@@ -907,7 +835,7 @@ PACKET_IDS = {
     12: "Tyre Sets",
     13: "Motion Ex",
     14: "Time Trial",
-    15: "Lap Positions"
+    15: "Lap Positions",
 }
 
 # MFD Panel Index
@@ -917,7 +845,7 @@ MFD_PANELS = {
     2: "Damage",
     3: "Engine",
     4: "Temperatures",
-    255: "MFD closed"
+    255: "MFD closed",
 }
 
 # Lap Valid Bit Flags
@@ -925,7 +853,7 @@ LAP_VALID_FLAGS = {
     0x01: "Lap valid",
     0x02: "Sector 1 valid",
     0x04: "Sector 2 valid",
-    0x08: "Sector 3 valid"
+    0x08: "Sector 3 valid",
 }
 
 # Wheel order for arrays
@@ -933,29 +861,21 @@ WHEEL_ORDER = {
     0: "Rear Left (RL)",
     1: "Rear Right (RR)",
     2: "Front Left (FL)",
-    3: "Front Right (FR)"
+    3: "Front Right (FR)",
 }
 
 # Temperature thresholds (approximate values for warnings)
 TEMP_THRESHOLDS = {
     "engine_warning": 112,  # Celsius
     "engine_critical": 120,
-    "brake_warning": 700,   # Celsius
+    "brake_warning": 700,  # Celsius
     "brake_critical": 850,
-    "tyre_warning": 105,    # Celsius
-    "tyre_critical": 115
+    "tyre_warning": 105,  # Celsius
+    "tyre_critical": 115,
 }
 
 # Speed conversion factors
-SPEED_CONVERSIONS = {
-    "kmh_to_mph": 0.621371,
-    "ms_to_kmh": 3.6,
-    "ms_to_mph": 2.23694
-}
+SPEED_CONVERSIONS = {"kmh_to_mph": 0.621371, "ms_to_kmh": 3.6, "ms_to_mph": 2.23694}
 
 # Distance conversion factors
-DISTANCE_CONVERSIONS = {
-    "m_to_km": 0.001,
-    "m_to_miles": 0.000621371,
-    "m_to_feet": 3.28084
-}
+DISTANCE_CONVERSIONS = {"m_to_km": 0.001, "m_to_miles": 0.000621371, "m_to_feet": 3.28084}

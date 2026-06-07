@@ -1,7 +1,7 @@
 """pytest configuration: autouse fixtures for deterministic isolation."""
+
 from __future__ import annotations
 
-import os
 import pytest
 
 
@@ -9,6 +9,7 @@ import pytest
 def _reset_lap_times_state():
     """Clear the module-level lap-times accumulator before every test."""
     from tests.helpers import reset_lap_times_state
+
     reset_lap_times_state()
     yield
     reset_lap_times_state()

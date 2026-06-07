@@ -3,21 +3,22 @@ import struct
 _HDR_FMT = "<HBBBBBQfIIBB"
 _HDR_SIZE = struct.calcsize(_HDR_FMT)
 
+
 def decode_motion(buf: memoryview):
     """Decode the F1 25 motion packet (car data only)."""
     offset = _HDR_SIZE
     cars = []
     for _ in range(22):
         vals = struct.unpack_from(
-            "<fff"      # worldPosition XYZ
-            "fff"       # worldVelocity XYZ
-            "hhhhhh"    # worldForwardDir / worldRightDir
-            "fff"       # gForceLateral / Longitudinal / Vertical
-            "fff",      # yaw / pitch / roll
+            "<fff"  # worldPosition XYZ
+            "fff"  # worldVelocity XYZ
+            "hhhhhh"  # worldForwardDir / worldRightDir
+            "fff"  # gForceLateral / Longitudinal / Vertical
+            "fff",  # yaw / pitch / roll
             buf,
             offset,
         )
-        offset += struct.calcsize("<fff" "fff" "hhhhhh" "fff" "fff")
+        offset += struct.calcsize("<ffffffhhhhhhffffff")
         car = {
             "worldPosition": vals[0:3],
             "worldVelocity": vals[3:6],

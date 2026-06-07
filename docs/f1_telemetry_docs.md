@@ -1,3 +1,11 @@
+<!--
+  This document mirrors the official F1 25 UDP telemetry specification published by
+  Codemasters / EA Sports. It is included here for reference purposes only, as permitted
+  under EA's published guidance: "This information is being provided under license from EA
+  for reference purposes only." All intellectual property rights remain with EA / Codemasters.
+  See DISCLAIMER.md for full legal notice.
+-->
+
 # Data Output from F1® 2 5 Game
 
 ## Contents

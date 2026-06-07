@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from src.live_data_engine.capture import F1TelemetryCapture
 from src.mcp.functions._shared import (
@@ -16,7 +16,7 @@ from src.mcp.functions._shared import (
 )
 
 
-def _level_low_medium_high(value: Optional[float]) -> str:
+def _level_low_medium_high(value: float | None) -> str:
     if value is None:
         return "low"
     if value >= 50:
@@ -26,7 +26,7 @@ def _level_low_medium_high(value: Optional[float]) -> str:
     return "low"
 
 
-def _damage_level(value: Optional[float]) -> str:
+def _damage_level(value: float | None) -> str:
     if value is None:
         return "undamaged"
     if value <= 10:
@@ -38,7 +38,7 @@ def _damage_level(value: Optional[float]) -> str:
     return "low"
 
 
-def _damage_by_part_levels(damage: Dict[str, Any]) -> Dict[str, str]:
+def _damage_by_part_levels(damage: dict[str, Any]) -> dict[str, str]:
     front_wing = damage.get("frontWingDamage")
     front_left = None
     front_right = None
@@ -60,7 +60,7 @@ def _damage_by_part_levels(damage: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def _session_phase(mode: str, safety_car: str, lap: Optional[int], laps_remaining: Optional[int]) -> str:
+def _session_phase(mode: str, safety_car: str, lap: int | None, laps_remaining: int | None) -> str:
     if mode != "in_game":
         return "not_racing"
     if safety_car in ("sc", "vsc"):
@@ -72,7 +72,9 @@ def _session_phase(mode: str, safety_car: str, lap: Optional[int], laps_remainin
     return "racing"
 
 
-def _pace_deltas(standings: List[Dict[str, Any]], player_position: Optional[int], player_last_lap: Any) -> Tuple[Optional[float], Optional[float]]:
+def _pace_deltas(
+    standings: list[dict[str, Any]], player_position: int | None, player_last_lap: Any
+) -> tuple[float | None, float | None]:
     player_lap_s = _parse_lap_time_seconds(player_last_lap)
     if player_lap_s is None or not isinstance(player_position, int):
         return None, None
@@ -85,7 +87,7 @@ def _pace_deltas(standings: List[Dict[str, Any]], player_position: Optional[int]
     return delta_front, delta_back
 
 
-def _presence_mode(capture: F1TelemetryCapture) -> Dict[str, Any]:
+def _presence_mode(capture: F1TelemetryCapture) -> dict[str, Any]:
     presence = capture.query.get_player_presence_state()
     return {
         "mode": presence.get("state", "neither"),
@@ -97,7 +99,7 @@ def _presence_mode(capture: F1TelemetryCapture) -> Dict[str, Any]:
     }
 
 
-def _player_visual_compound(capture: F1TelemetryCapture, player_idx: Optional[int]) -> Optional[str]:
+def _player_visual_compound(capture: F1TelemetryCapture, player_idx: int | None) -> str | None:
     if not isinstance(player_idx, int) or player_idx < 0:
         return None
     try:
@@ -112,7 +114,7 @@ def _player_visual_compound(capture: F1TelemetryCapture, player_idx: Optional[in
     return None
 
 
-def _player_tyre_wear(capture: F1TelemetryCapture, player_idx: Optional[int]) -> Optional[List[float]]:
+def _player_tyre_wear(capture: F1TelemetryCapture, player_idx: int | None) -> list[float] | None:
     if not isinstance(player_idx, int) or player_idx < 0:
         return None
     try:
@@ -132,7 +134,7 @@ def _player_tyre_wear(capture: F1TelemetryCapture, player_idx: Optional[int]) ->
     return None
 
 
-def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
+def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
     mode_data = _presence_mode(capture)
     session = capture.query.get_session_info()
     player = capture.query.get_current_position() or {}
@@ -153,8 +155,10 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
     laps_total = session.get("totalLaps")
     laps_remaining = capture.query.get_num_remaining_laps()
     session_snapshot = capture.query._session_snapshot()
-    low_fuel_mode = session_snapshot.get("lowFuelMode") if isinstance(session_snapshot, dict) else None
-    low_fuel_mode_hard = (low_fuel_mode == 1)
+    low_fuel_mode = (
+        session_snapshot.get("lowFuelMode") if isinstance(session_snapshot, dict) else None
+    )
+    low_fuel_mode_hard = low_fuel_mode == 1
     standings = capture.query.get_race_standings(limit=22)
     player_idx = capture.player_car_index
     fuel_laps_raw = _round(fuel.get("fuelRemainingLaps"), 2)
@@ -169,14 +173,28 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
         fuel_laps_out = None
         fuel_delta_laps = None
     player_position = player.get("position")
-    front_driver = capture.query.get_driver_by_position(player_position - 1) if isinstance(player_position, int) and player_position > 1 else None
-    back_driver = capture.query.get_driver_by_position(player_position + 1) if isinstance(player_position, int) else None
-    pace_delta_front_s, pace_delta_back_s = _pace_deltas(standings, player_position, player.get("lastLapTime"))
+    front_driver = (
+        capture.query.get_driver_by_position(player_position - 1)
+        if isinstance(player_position, int) and player_position > 1
+        else None
+    )
+    back_driver = (
+        capture.query.get_driver_by_position(player_position + 1)
+        if isinstance(player_position, int)
+        else None
+    )
+    pace_delta_front_s, pace_delta_back_s = _pace_deltas(
+        standings, player_position, player.get("lastLapTime")
+    )
     gap_front_s = _abs_round((gap_front or {}).get("gapSecondsApprox"), 2)
     gap_back_s = _abs_round((gap_back or {}).get("gapSecondsApprox"), 2)
-    visual_compound = _player_visual_compound(capture, player_idx) or _normalize_tyre_compound(telemetry_status.get("tyreCompound"))
+    visual_compound = _player_visual_compound(capture, player_idx) or _normalize_tyre_compound(
+        telemetry_status.get("tyreCompound")
+    )
     tyre_wear = _player_tyre_wear(capture, player_idx)
-    active_positions = [row.get("position") for row in standings if isinstance(row.get("position"), int) and row.get("position") > 0]
+    active_positions = [
+        pos for row in standings if isinstance(pos := row.get("position"), int) and pos > 0
+    ]
     total_positions = max(active_positions) if active_positions else len(standings)
     if not total_positions:
         total_positions = 20
@@ -191,12 +209,16 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
                     "total": laps_total,
                 },
                 "lapsRemaining": laps_remaining,
-                "phase": _session_phase(mode_data.get("mode") or "neither", safety_car, lap, laps_remaining),
+                "phase": _session_phase(
+                    mode_data.get("mode") or "neither", safety_car, lap, laps_remaining
+                ),
             },
             "player": {
                 "id": player_idx,
                 "name": player.get("driverName"),
-                "team": next((r.get("teamName") for r in standings if r.get("carIndex") == player_idx), None),
+                "team": next(
+                    (r.get("teamName") for r in standings if r.get("carIndex") == player_idx), None
+                ),
                 "position": {
                     "current": player_position,
                     "total": total_positions,
@@ -207,11 +229,15 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
                     "frontDriver": {
                         "name": (front_driver or {}).get("driverName"),
                         "position": (front_driver or {}).get("position"),
-                    } if front_driver else None,
+                    }
+                    if front_driver
+                    else None,
                     "backDriver": {
                         "name": (back_driver or {}).get("driverName"),
                         "position": (back_driver or {}).get("position"),
-                    } if back_driver else None,
+                    }
+                    if back_driver
+                    else None,
                 },
                 "pace": {
                     "lastLapS": _parse_lap_time_seconds(player.get("lastLapTime")),
@@ -222,7 +248,9 @@ def get_context_frame(capture: F1TelemetryCapture) -> Dict[str, Any]:
                     "tyre": {
                         "compound": visual_compound,
                         "ageLaps": tyres.get("ageLaps"),
-                        "wearLevel": _level_low_medium_high(_round(sum(tyre_wear) / len(tyre_wear), 1) if tyre_wear else None),
+                        "wearLevel": _level_low_medium_high(
+                            _round(sum(tyre_wear) / len(tyre_wear), 1) if tyre_wear else None
+                        ),
                     },
                     "fuel": {
                         "status": "critical" if low_fuel_mode_hard else "nominal",

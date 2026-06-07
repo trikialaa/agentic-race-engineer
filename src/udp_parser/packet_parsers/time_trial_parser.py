@@ -6,9 +6,20 @@ _HDR_SIZE = struct.calcsize(_HDR_FMT)
 
 def _parse_dataset(buf: memoryview, offset: int):
     values = struct.unpack_from("<BBIIIIIBBBBBB", buf, offset)
-    car_idx, team_id, lap_time, sector1, sector2, sector3, \
-        traction_control, gearbox_assist, anti_lock_brakes, \
-        equal_car_perf, custom_setup, valid = values
+    (
+        car_idx,
+        team_id,
+        lap_time,
+        sector1,
+        sector2,
+        sector3,
+        traction_control,
+        gearbox_assist,
+        anti_lock_brakes,
+        equal_car_perf,
+        custom_setup,
+        valid,
+    ) = values
     offset += struct.calcsize("<BBIIIIIBBBBBB")
     return {
         "carIndex": car_idx,

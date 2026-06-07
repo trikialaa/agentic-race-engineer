@@ -6,9 +6,9 @@ masks wall-clock fields, and compares against a committed golden JSON.
 To regenerate goldens after intentional format changes:
   python tests/fixtures/build_fixture.py --skip-parity --update-golden
 """
+
 from __future__ import annotations
 
-import json
 import pytest
 
 from tests.helpers import load_capture_to, load_golden, load_markers, mask
@@ -37,6 +37,7 @@ def captures_by_scenario():
 @pytest.mark.parametrize("tool,scenario", CASES, ids=lambda x: x)
 def test_golden(tool, scenario, captures_by_scenario):
     import src.mcp.functions as fns
+
     cap = captures_by_scenario[scenario]
     fn = getattr(fns, tool)
     result = fn(cap)

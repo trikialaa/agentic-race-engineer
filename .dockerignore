@@ -1,0 +1,37 @@
+# Version control
+.git
+.gitignore
+
+# Node / Electron
+node_modules
+src/ui/electron
+src/ui/web_static
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+
+# Dev / test assets
+tests
+helpers
+docs
+assets
+scripts
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+dist
+build
+
+# Editor / OS
+.vscode
+.idea
+*.swp
+.DS_Store

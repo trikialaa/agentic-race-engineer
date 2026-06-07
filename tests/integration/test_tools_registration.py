@@ -4,13 +4,14 @@ Verifies that register_mcp_tools correctly binds all 6 tools through the
 getattr(mcp_functions, name) path that the functions/ package split depends on.
 No subprocess, no network.
 """
+
 from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
 
-from tests.helpers import load_capture_to, load_markers
 from src.mcp.tools import TOOL_FUNCTIONS, register_mcp_tools
+from tests.helpers import load_capture_to, load_markers
 
 MARKERS = load_markers()
 
@@ -38,6 +39,7 @@ def test_no_extra_tools_registered(registered_mcp):
 def test_tool_functions_resolve_from_package():
     """getattr(mcp_functions, name) must work for every tool name."""
     import src.mcp.functions as fns
+
     for name in TOOL_FUNCTIONS:
         fn = getattr(fns, name, None)
         assert fn is not None and callable(fn), f"mcp_functions.{name} not accessible"
@@ -46,6 +48,7 @@ def test_tool_functions_resolve_from_package():
 def test_registered_tool_returns_dict():
     """Direct call through the function package returns a dict."""
     import src.mcp.functions as fns
+
     cap = load_capture_to(frame=MARKERS["start"])
     result = fns.get_context_frame(cap)
     assert isinstance(result, dict)

@@ -1,10 +1,11 @@
 """Shared test utilities: in-process fixture loader and output masker."""
+
 from __future__ import annotations
 
 import json
 import struct
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 FIXTURE_BIN = Path(__file__).parent / "fixtures" / "race_catalunya_2025.bin"
 MARKERS_JSON = Path(__file__).parent / "fixtures" / "markers.json"
@@ -31,21 +32,25 @@ def load_markers() -> dict[str, int]:
 
 def _read_fixture_packets(bin_path: Path = FIXTURE_BIN) -> list[bytes]:
     data = bin_path.read_bytes()
-    pos = 0; pkts = []
+    pos = 0
+    pkts = []
     while pos + 2 <= len(data):
-        length = int.from_bytes(data[pos:pos + 2], "little"); pos += 2
-        if pos + length > len(data): break
-        pkts.append(data[pos:pos + length]); pos += length
+        length = int.from_bytes(data[pos : pos + 2], "little")
+        pos += 2
+        if pos + length > len(data):
+            break
+        pkts.append(data[pos : pos + length])
+        pos += length
     return pkts
 
 
-def load_capture_to(frame: Optional[int] = None, bin_path: Path = FIXTURE_BIN):
+def load_capture_to(frame: int | None = None, bin_path: Path = FIXTURE_BIN):
     """
     Return an F1TelemetryCapture fed with fixture packets up to `frame`
     (inclusive). No UDP socket or thread started — feeds through the same
     production decode+_update_data path the socket loop uses.
     """
-    from src.live_data_engine.capture import F1TelemetryCapture, PACKET_TYPES
+    from src.live_data_engine.capture import PACKET_TYPES, F1TelemetryCapture
     from src.udp_parser import PacketHeader
 
     cap = F1TelemetryCapture()
@@ -77,5 +82,6 @@ def load_golden(tool: str, scenario: str) -> Any:
 
 def reset_lap_times_state() -> None:
     import src.mcp.functions.lap_times as lt
+
     lt._LAP_TIMES_STATE.clear()
     lt._LAP_TIMES_SESSION_UID = None

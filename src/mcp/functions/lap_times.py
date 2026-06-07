@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, cast
 
 from src.live_data_engine.capture import F1TelemetryCapture
 from src.mcp.functions._shared import _clock_now, _strip_nulls
 
-_LAP_TIMES_STATE: Dict[int, Dict[str, Dict[str, Optional[str]]]] = {}
-_LAP_TIMES_SESSION_UID: Optional[Any] = None
+_LAP_TIMES_STATE: dict[int, dict[str, dict[str, str | None]]] = {}
+_LAP_TIMES_SESSION_UID: Any | None = None
 
 
-def _parse_time_to_ms(value: Any) -> Optional[int]:
+def _parse_time_to_ms(value: Any) -> int | None:
     if not isinstance(value, str):
         return None
     text = value.strip()
@@ -31,7 +31,7 @@ def _parse_time_to_ms(value: Any) -> Optional[int]:
         return None
 
 
-def _format_ms_as_lap(ms: Optional[int]) -> Optional[str]:
+def _format_ms_as_lap(ms: int | None) -> str | None:
     if not isinstance(ms, int) or ms <= 0:
         return None
     minutes = ms // 60000
@@ -39,14 +39,14 @@ def _format_ms_as_lap(ms: Optional[int]) -> Optional[str]:
     return f"{minutes:02d}:{seconds:06.3f}"
 
 
-def _format_ms_as_sector(ms: Optional[int]) -> Optional[str]:
+def _format_ms_as_sector(ms: int | None) -> str | None:
     if not isinstance(ms, int) or ms <= 0:
         return None
     seconds = ms / 1000.0
     return f"{seconds:.3f}"
 
 
-def _pick_time_text(*values: Any) -> Optional[str]:
+def _pick_time_text(*values: Any) -> str | None:
     zero_tokens = {"00:00.000", "0:00.000", "00.000", "0.000", "0"}
     for value in values:
         if isinstance(value, str):
@@ -56,7 +56,7 @@ def _pick_time_text(*values: Any) -> Optional[str]:
     return None
 
 
-def _derive_sector3_ms(last_lap_ms: Optional[int], s1_ms: Optional[int], s2_ms: Optional[int]) -> Optional[int]:
+def _derive_sector3_ms(last_lap_ms: int | None, s1_ms: int | None, s2_ms: int | None) -> int | None:
     if not isinstance(last_lap_ms, int) or not isinstance(s1_ms, int) or not isinstance(s2_ms, int):
         return None
     if last_lap_ms <= 0 or s1_ms <= 0 or s2_ms <= 0:
@@ -67,7 +67,7 @@ def _derive_sector3_ms(last_lap_ms: Optional[int], s1_ms: Optional[int], s2_ms: 
     return s3
 
 
-def _is_better_time(new_value: Optional[str], current_best: Optional[str]) -> bool:
+def _is_better_time(new_value: str | None, current_best: str | None) -> bool:
     if not isinstance(new_value, str) or not new_value.strip():
         return False
     new_ms = _parse_time_to_ms(new_value)
@@ -81,7 +81,9 @@ def _is_better_time(new_value: Optional[str], current_best: Optional[str]) -> bo
     return new_ms < best_ms
 
 
-def _derive_sector3_text(lap_text: Optional[str], s1_text: Optional[str], s2_text: Optional[str]) -> Optional[str]:
+def _derive_sector3_text(
+    lap_text: str | None, s1_text: str | None, s2_text: str | None
+) -> str | None:
     lap_ms = _parse_time_to_ms(lap_text)
     s1_ms = _parse_time_to_ms(s1_text)
     s2_ms = _parse_time_to_ms(s2_text)
@@ -89,7 +91,7 @@ def _derive_sector3_text(lap_text: Optional[str], s1_text: Optional[str], s2_tex
     return _format_ms_as_sector(s3_ms) if isinstance(s3_ms, int) and s3_ms > 0 else None
 
 
-def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
+def get_lap_times(capture: F1TelemetryCapture) -> dict[str, Any]:
     global _LAP_TIMES_SESSION_UID
     current_uid = (capture.last_header or {}).get("sessionUID")
     if current_uid is not None and current_uid != _LAP_TIMES_SESSION_UID:
@@ -100,7 +102,7 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
         session_history_by_car = list(getattr(capture, "session_history_by_car", []))
     standings = capture.query.get_race_standings(limit=22)
     _, lap_data, _ = capture.query._lap_participant_snapshot()
-    lap_history = (capture.data.get("lap_data", {}) or {}).get("history", [])
+    lap_history = cast(list[Any], (capture.data.get("lap_data", {}) or {}).get("history", []))
 
     rows = []
     for row in standings:
@@ -109,17 +111,47 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
         if not isinstance(position, int) or position <= 0 or not isinstance(car_id, int):
             continue
 
-        lap = lap_data[car_id] if 0 <= car_id < len(lap_data) and isinstance(lap_data[car_id], dict) else {}
-        history_entries = lap_history[car_id] if 0 <= car_id < len(lap_history) and isinstance(lap_history[car_id], list) else []
+        lap = (
+            lap_data[car_id]
+            if 0 <= car_id < len(lap_data) and isinstance(lap_data[car_id], dict)
+            else {}
+        )
+        history_entries = (
+            lap_history[car_id]
+            if 0 <= car_id < len(lap_history) and isinstance(lap_history[car_id], list)
+            else []
+        )
         latest_history = history_entries[0] if history_entries else {}
-        recent_lap_text = _pick_time_text((latest_history or {}).get("lapTimeFormatted"), lap.get("lastLapTimeFormatted"))
-        recent_s1_text = _pick_time_text((latest_history or {}).get("sector1"), lap.get("sector1TimeFormatted"))
-        recent_s2_text = _pick_time_text((latest_history or {}).get("sector2"), lap.get("sector2TimeFormatted"))
+        recent_lap_text = _pick_time_text(
+            (latest_history or {}).get("lapTimeFormatted"), lap.get("lastLapTimeFormatted")
+        )
+        recent_s1_text = _pick_time_text(
+            (latest_history or {}).get("sector1"), lap.get("sector1TimeFormatted")
+        )
+        recent_s2_text = _pick_time_text(
+            (latest_history or {}).get("sector2"), lap.get("sector2TimeFormatted")
+        )
         recent_s3_text = _pick_time_text((latest_history or {}).get("sector3"))
-        recent_lap_ms = _parse_time_to_ms(latest_history.get("lapTimeFormatted")) if isinstance(latest_history, dict) else None
-        recent_s1_ms = _parse_time_to_ms(latest_history.get("sector1")) if isinstance(latest_history, dict) else None
-        recent_s2_ms = _parse_time_to_ms(latest_history.get("sector2")) if isinstance(latest_history, dict) else None
-        recent_s3_ms = _parse_time_to_ms(latest_history.get("sector3")) if isinstance(latest_history, dict) else None
+        recent_lap_ms = (
+            _parse_time_to_ms(latest_history.get("lapTimeFormatted"))
+            if isinstance(latest_history, dict)
+            else None
+        )
+        recent_s1_ms = (
+            _parse_time_to_ms(latest_history.get("sector1"))
+            if isinstance(latest_history, dict)
+            else None
+        )
+        recent_s2_ms = (
+            _parse_time_to_ms(latest_history.get("sector2"))
+            if isinstance(latest_history, dict)
+            else None
+        )
+        recent_s3_ms = (
+            _parse_time_to_ms(latest_history.get("sector3"))
+            if isinstance(latest_history, dict)
+            else None
+        )
         if recent_s3_ms is None:
             recent_s3_ms = _derive_sector3_ms(recent_lap_ms, recent_s1_ms, recent_s2_ms)
 
@@ -130,17 +162,23 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
             recent_s1_ms = _parse_time_to_ms(lap.get("sector1TimeFormatted"))
             if not isinstance(recent_s1_ms, int) or recent_s1_ms <= 0:
                 raw_s1 = lap.get("sector1TimeInMS")
-                recent_s1_ms = int(raw_s1) if isinstance(raw_s1, (int, float)) and raw_s1 > 0 else None
+                recent_s1_ms = (
+                    int(raw_s1) if isinstance(raw_s1, (int, float)) and raw_s1 > 0 else None
+                )
         if recent_s2_ms is None:
             recent_s2_ms = _parse_time_to_ms(lap.get("sector2TimeFormatted"))
             if not isinstance(recent_s2_ms, int) or recent_s2_ms <= 0:
                 raw_s2 = lap.get("sector2TimeInMS")
-                recent_s2_ms = int(raw_s2) if isinstance(raw_s2, (int, float)) and raw_s2 > 0 else None
+                recent_s2_ms = (
+                    int(raw_s2) if isinstance(raw_s2, (int, float)) and raw_s2 > 0 else None
+                )
         if recent_s3_ms is None:
             recent_s3_ms = _derive_sector3_ms(recent_lap_ms, recent_s1_ms, recent_s2_ms)
 
         # Prefer per-car session history (completed laps, stable at line crossing).
-        session_hist = session_history_by_car[car_id] if 0 <= car_id < len(session_history_by_car) else None
+        session_hist = (
+            session_history_by_car[car_id] if 0 <= car_id < len(session_history_by_car) else None
+        )
         if isinstance(session_hist, dict):
             sh_laps = session_hist.get("lapHistory")
             num_laps = session_hist.get("numLaps")
@@ -165,21 +203,31 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
                         break
 
                 if isinstance(recent_complete, dict):
-                    recent_lap_ms = int(recent_complete.get("lapTimeInMS"))
-                    recent_s1_ms = int(recent_complete.get("s1InMS"))
-                    recent_s2_ms = int(recent_complete.get("s2InMS"))
-                    recent_s3_ms = int(recent_complete.get("s3InMS"))
-                    recent_lap_text = _pick_time_text(recent_complete.get("lapTimeFormatted"), recent_lap_text)
+                    recent_lap_ms = int(recent_complete.get("lapTimeInMS") or 0)
+                    recent_s1_ms = int(recent_complete.get("s1InMS") or 0)
+                    recent_s2_ms = int(recent_complete.get("s2InMS") or 0)
+                    recent_s3_ms = int(recent_complete.get("s3InMS") or 0)
+                    recent_lap_text = _pick_time_text(
+                        recent_complete.get("lapTimeFormatted"), recent_lap_text
+                    )
                     recent_s1_text = _pick_time_text(recent_complete.get("s1"), recent_s1_text)
                     recent_s2_text = _pick_time_text(recent_complete.get("s2"), recent_s2_text)
                     recent_s3_text = _pick_time_text(recent_complete.get("s3"), recent_s3_text)
 
         # Seed best values with current-most-recent valid timings so "best" is never
         # behind when history buffers lag by one update.
-        best_lap_ms: Optional[int] = recent_lap_ms if isinstance(recent_lap_ms, int) and recent_lap_ms > 0 else None
-        best_s1_ms: Optional[int] = recent_s1_ms if isinstance(recent_s1_ms, int) and recent_s1_ms > 0 else None
-        best_s2_ms: Optional[int] = recent_s2_ms if isinstance(recent_s2_ms, int) and recent_s2_ms > 0 else None
-        best_s3_ms: Optional[int] = recent_s3_ms if isinstance(recent_s3_ms, int) and recent_s3_ms > 0 else None
+        best_lap_ms: int | None = (
+            recent_lap_ms if isinstance(recent_lap_ms, int) and recent_lap_ms > 0 else None
+        )
+        best_s1_ms: int | None = (
+            recent_s1_ms if isinstance(recent_s1_ms, int) and recent_s1_ms > 0 else None
+        )
+        best_s2_ms: int | None = (
+            recent_s2_ms if isinstance(recent_s2_ms, int) and recent_s2_ms > 0 else None
+        )
+        best_s3_ms: int | None = (
+            recent_s3_ms if isinstance(recent_s3_ms, int) and recent_s3_ms > 0 else None
+        )
         best_lap_text = recent_lap_text
         best_s1_text = recent_s1_text
         best_s2_text = recent_s2_text
@@ -224,22 +272,44 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
                         continue
 
                     lap_v = lap_entry.get("lapTimeInMS")
-                    if (flags & 0x01) and isinstance(lap_v, int) and lap_v > 0 and (best_lap_ms is None or lap_v < best_lap_ms):
+                    if (
+                        (flags & 0x01)
+                        and isinstance(lap_v, int)
+                        and lap_v > 0
+                        and (best_lap_ms is None or lap_v < best_lap_ms)
+                    ):
                         best_lap_ms = lap_v
-                        best_lap_text = _pick_time_text(lap_entry.get("lapTimeFormatted"), best_lap_text)
+                        best_lap_text = _pick_time_text(
+                            lap_entry.get("lapTimeFormatted"), best_lap_text
+                        )
 
                     s1_v = lap_entry.get("s1InMS")
-                    if (flags & 0x02) and isinstance(s1_v, int) and s1_v > 0 and (best_s1_ms is None or s1_v < best_s1_ms):
+                    if (
+                        (flags & 0x02)
+                        and isinstance(s1_v, int)
+                        and s1_v > 0
+                        and (best_s1_ms is None or s1_v < best_s1_ms)
+                    ):
                         best_s1_ms = s1_v
                         best_s1_text = _pick_time_text(lap_entry.get("s1"), best_s1_text)
 
                     s2_v = lap_entry.get("s2InMS")
-                    if (flags & 0x04) and isinstance(s2_v, int) and s2_v > 0 and (best_s2_ms is None or s2_v < best_s2_ms):
+                    if (
+                        (flags & 0x04)
+                        and isinstance(s2_v, int)
+                        and s2_v > 0
+                        and (best_s2_ms is None or s2_v < best_s2_ms)
+                    ):
                         best_s2_ms = s2_v
                         best_s2_text = _pick_time_text(lap_entry.get("s2"), best_s2_text)
 
                     s3_v = lap_entry.get("s3InMS")
-                    if (flags & 0x08) and isinstance(s3_v, int) and s3_v > 0 and (best_s3_ms is None or s3_v < best_s3_ms):
+                    if (
+                        (flags & 0x08)
+                        and isinstance(s3_v, int)
+                        and s3_v > 0
+                        and (best_s3_ms is None or s3_v < best_s3_ms)
+                    ):
                         best_s3_ms = s3_v
                         best_s3_text = _pick_time_text(lap_entry.get("s3"), best_s3_text)
 
@@ -303,15 +373,19 @@ def get_lap_times(capture: F1TelemetryCapture) -> Dict[str, Any]:
 
         _LAP_TIMES_STATE[car_id] = {"mostRecent": most_recent_out, "best": best_out}
 
-        rows.append({
-            "position": position,
-            "carId": car_id,
-            "driver": row.get("driverName"),
-            "mostRecent": most_recent_out,
-            "best": best_out,
-        })
+        rows.append(
+            {
+                "position": position,
+                "carId": car_id,
+                "driver": row.get("driverName"),
+                "mostRecent": most_recent_out,
+                "best": best_out,
+            }
+        )
 
-    return _strip_nulls({
-        "time": _clock_now(),
-        "lapTimes": rows,
-    })
+    return _strip_nulls(
+        {
+            "time": _clock_now(),
+            "lapTimes": rows,
+        }
+    )

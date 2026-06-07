@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import logging
 import os
+
 from deepgram import DeepgramClient
 
 logger = logging.getLogger(__name__)
@@ -10,26 +12,69 @@ logger = logging.getLogger(__name__)
 # F1 jargon and all current grid surnames — boosted for Nova-3 recognition
 STATIC_KEYTERMS: list[str] = [
     # Race control / strategy
-    "box", "box box", "DRS", "ERS", "VSC", "safety car",
-    "undercut", "overcut", "pit window",
-    "soft", "medium", "hard", "inter", "intermediate",
-    "tyre", "degradation", "graining",
-    "gap", "interval", "delta", "sector",
-    "fuel load", "fuel saving", "brake bias",
-    "radio check", "lap"
+    "box",
+    "box box",
+    "DRS",
+    "ERS",
+    "VSC",
+    "safety car",
+    "undercut",
+    "overcut",
+    "pit window",
+    "soft",
+    "medium",
+    "hard",
+    "inter",
+    "intermediate",
+    "tyre",
+    "degradation",
+    "graining",
+    "gap",
+    "interval",
+    "delta",
+    "sector",
+    "fuel load",
+    "fuel saving",
+    "brake bias",
+    "radio check",
+    "lap"
     # Surnames (unique / phonetically tricky)
-    "Verstappen", "Norris", "Leclerc", "Piastri", "Russell", "Hamilton",
-    "Alonso", "Sainz", "Perez", "Gasly", "Ocon", "Stroll", "Albon",
-    "Bottas", "Magnussen", "Hulkenberg", "Tsunoda", "Lawson",
-    "Bearman", "Colapinto", "Doohan", "Antonelli", "Hadjar",
-    "Lindblad", "Bortoleto",
+    "Verstappen",
+    "Norris",
+    "Leclerc",
+    "Piastri",
+    "Russell",
+    "Hamilton",
+    "Alonso",
+    "Sainz",
+    "Perez",
+    "Gasly",
+    "Ocon",
+    "Stroll",
+    "Albon",
+    "Bottas",
+    "Magnussen",
+    "Hulkenberg",
+    "Tsunoda",
+    "Lawson",
+    "Bearman",
+    "Colapinto",
+    "Doohan",
+    "Antonelli",
+    "Hadjar",
+    "Lindblad",
+    "Bortoleto",
     # First names that are ambiguous or uncommon
-    "Oscar", "Lando", "Guanyu", "Isack", "Kimi", "Yuki",
+    "Oscar",
+    "Lando",
+    "Guanyu",
+    "Isack",
+    "Kimi",
+    "Yuki",
 ]
 
 
-class STT():
-
+class STT:
     def __init__(self):
         self.client = DeepgramClient()
         self.model = os.getenv("DEEPGRAM_MODEL", "nova-3")

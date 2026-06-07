@@ -9,7 +9,7 @@ import os
 import queue
 import sys
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.voice_pipeline.callouts import CalloutMonitor
@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 from agent_framework import MCPStdioTool
 from agent_framework.openai import OpenAIChatClient
+
 from src import config as _app_config
+
 SYSTEM_PROMPT = """
 # SYSTEM:
 You are an F1 Race Engineer, supporting a player during an F1 game session.
@@ -86,6 +88,7 @@ SESSION_POLL_INTERVAL = 3.0
 RACE_SESSION_TYPES = frozenset(_app_config.get("sessionTypes", ["Race", "Race 2", "Feature Race"]))
 ACTIVE_PHASES = frozenset({"racing", "sc_vsc", "opening_lap"})
 
+
 class RaceEngineerAgent:
     def __init__(self) -> None:
         self._client = OpenAIChatClient(
@@ -94,7 +97,7 @@ class RaceEngineerAgent:
             base_url=str(os.getenv("BASETEN_BASE_URL")),
         )
         self._agent = None
-        self._mcp_tool: Optional[MCPStdioTool] = None
+        self._mcp_tool: MCPStdioTool | None = None
         self._initialized = False
         self._init_lock = asyncio.Lock()
         self._history: list[tuple[str, str]] = []
@@ -106,7 +109,7 @@ class RaceEngineerAgent:
         self._mcp_lock = asyncio.Lock()
         self._last_ptt_ts: float = 0.0
 
-        self._callouts: Optional[CalloutMonitor] = None
+        self._callouts: CalloutMonitor | None = None
 
     @property
     def last_ptt_ts(self) -> float:
@@ -118,6 +121,7 @@ class RaceEngineerAgent:
 
     def set_callout_queue(self, q: queue.Queue) -> None:
         from src.voice_pipeline.callouts import CalloutMonitor
+
         self._callouts = CalloutMonitor(self, q)
 
     async def init_async(self) -> None:
@@ -131,7 +135,12 @@ class RaceEngineerAgent:
                 name="F1TelemetryServer",
                 command=sys.executable or "python",
                 args=["-m", "src.mcp.server"],
-                allowed_tools=["get_leaderboard", "get_lap_times", "get_weather_forecast", "get_strategy"],
+                allowed_tools=[
+                    "get_leaderboard",
+                    "get_lap_times",
+                    "get_weather_forecast",
+                    "get_strategy",
+                ],
             )
             await self._mcp_tool.__aenter__()
 
@@ -210,13 +219,17 @@ class RaceEngineerAgent:
                     self._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
                     timeout=7.0,
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("agent.run timed out after 7s")
             return "No response — try again."
 
         text = getattr(result, "text", None)
         if not isinstance(text, str):
-            logger.warning("Agent result has no .text string; falling back to str(result). type=%s value=%r", type(result), result)
+            logger.warning(
+                "Agent result has no .text string; falling back to str(result). type=%s value=%r",
+                type(result),
+                result,
+            )
             text = str(result)
 
         self._history.append((user_text, text))
@@ -310,7 +323,9 @@ class RaceEngineerAgent:
     def _run_sync(self, coro):
         try:
             asyncio.get_running_loop()
-            raise RuntimeError("reply() cannot be called from an active event loop. Use await reply_async(...).")
+            raise RuntimeError(
+                "reply() cannot be called from an active event loop. Use await reply_async(...)."
+            )
         except RuntimeError as exc:
             if "cannot be called from an active event loop" in str(exc):
                 raise

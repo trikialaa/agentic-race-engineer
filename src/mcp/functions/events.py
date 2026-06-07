@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from src.live_data_engine.capture import F1TelemetryCapture
 from src.mcp.functions._shared import _clock_now, _normalize_tyre_compound, _strip_nulls
 from src.udp_parser.constants import VISUAL_TYRE_COMPOUNDS
 
 
-def get_recent_events(capture: F1TelemetryCapture) -> Dict[str, Any]:
+def get_recent_events(capture: F1TelemetryCapture) -> dict[str, Any]:
     with capture.lock:
         stream = list(capture.classified_event_stream)
     return {
@@ -17,7 +17,7 @@ def get_recent_events(capture: F1TelemetryCapture) -> Dict[str, Any]:
     }
 
 
-def get_strategy(capture: F1TelemetryCapture) -> Dict[str, Any]:
+def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
     pit_window = capture.query.get_pitstop_window_recommendation()
     rejoin_pos_raw = capture.query.get_pitstop_rejoin_position()
     rejoin_pos = rejoin_pos_raw if isinstance(rejoin_pos_raw, int) and rejoin_pos_raw > 0 else None
@@ -33,7 +33,7 @@ def get_strategy(capture: F1TelemetryCapture) -> Dict[str, Any]:
         else None
     )
 
-    available_sets: List[Dict[str, Any]] = []
+    available_sets: list[dict[str, Any]] = []
     if isinstance(tyre_sets_data, dict):
         for s in tyre_sets_data.get("tyreSets", []):
             if not isinstance(s, dict) or not s.get("available"):
@@ -44,25 +44,29 @@ def get_strategy(capture: F1TelemetryCapture) -> Dict[str, Any]:
             )
             wear = s.get("wear")
             lap_delta_ms = s.get("lapDeltaTime")
-            available_sets.append({
-                "compound": compound,
-                "wear": wear,
-                "isNew": isinstance(wear, int) and wear == 0,
-                "isFitted": bool(s.get("isFitted")),
-                "lapDeltaMs": lap_delta_ms,
-            })
+            available_sets.append(
+                {
+                    "compound": compound,
+                    "wear": wear,
+                    "isNew": isinstance(wear, int) and wear == 0,
+                    "isFitted": bool(s.get("isFitted")),
+                    "lapDeltaMs": lap_delta_ms,
+                }
+            )
 
-    return _strip_nulls({
-        "time": _clock_now(),
-        "pitWindow": {
-            "idealLap": ideal_lap,
-            "latestLap": latest_lap,
-            "lapsUntilIdeal": laps_until_ideal,
-        },
-        "rejoinPosition": rejoin_pos,
-        "currentTyre": {
-            "compound": _normalize_tyre_compound(tyres.get("compound")),
-            "ageLaps": tyres.get("ageLaps"),
-        },
-        "availableSets": available_sets,
-    })
+    return _strip_nulls(
+        {
+            "time": _clock_now(),
+            "pitWindow": {
+                "idealLap": ideal_lap,
+                "latestLap": latest_lap,
+                "lapsUntilIdeal": laps_until_ideal,
+            },
+            "rejoinPosition": rejoin_pos,
+            "currentTyre": {
+                "compound": _normalize_tyre_compound(tyres.get("compound")),
+                "ageLaps": tyres.get("ageLaps"),
+            },
+            "availableSets": available_sets,
+        }
+    )

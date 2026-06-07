@@ -1,10 +1,9 @@
 """Unit tests for packet parsers using real bytes from the fixture."""
+
 from __future__ import annotations
 
 import struct
 from pathlib import Path
-
-import pytest
 
 FIXTURE_BIN = Path(__file__).parents[1] / "fixtures" / "race_catalunya_2025.bin"
 HDR_FMT = "<HBBBBBQfIIBB"
@@ -15,9 +14,12 @@ def _iter_packets():
     data = FIXTURE_BIN.read_bytes()
     pos = 0
     while pos + 2 <= len(data):
-        length = int.from_bytes(data[pos:pos + 2], "little"); pos += 2
-        if pos + length > len(data): break
-        yield data[pos:pos + length]; pos += length
+        length = int.from_bytes(data[pos : pos + 2], "little")
+        pos += 2
+        if pos + length > len(data):
+            break
+        yield data[pos : pos + length]
+        pos += length
 
 
 def _first_packet_by_id(pid: int) -> bytes:
@@ -30,6 +32,7 @@ def _first_packet_by_id(pid: int) -> bytes:
 class TestPacketHeader:
     def test_header_parses_from_fixture(self):
         from src.udp_parser import PacketHeader
+
         pkt = next(_iter_packets())
         hdr = PacketHeader.from_buf(memoryview(pkt))
         assert hdr.m_packetFormat == 2025
@@ -40,6 +43,7 @@ class TestPacketHeader:
 
     def test_all_packets_have_valid_headers(self):
         from src.udp_parser import PacketHeader
+
         errors = 0
         for pkt in _iter_packets():
             if len(pkt) < HDR_SIZE:
@@ -55,6 +59,7 @@ class TestPacketHeader:
 class TestEventParser:
     def test_event_packet_decodes(self):
         from src.udp_parser.packet_parsers.event_parser import decode_event
+
         pkt = _first_packet_by_id(3)
         result = decode_event(memoryview(pkt))
         assert "eventCode" in result
@@ -63,6 +68,7 @@ class TestEventParser:
 
     def test_ssta_event_present(self):
         from src.udp_parser.packet_parsers.event_parser import decode_event
+
         codes_seen = set()
         for pkt in _iter_packets():
             if len(pkt) > 6 and pkt[6] == 3:
@@ -74,6 +80,7 @@ class TestEventParser:
 class TestLapDataParser:
     def test_lap_data_has_laps_list(self):
         from src.udp_parser.packet_parsers.lap_data_parser import decode_lap_data
+
         pkt = _first_packet_by_id(2)
         result = decode_lap_data(memoryview(pkt))
         assert "laps" in result
@@ -82,6 +89,7 @@ class TestLapDataParser:
 
     def test_lap_entries_have_position_field(self):
         from src.udp_parser.packet_parsers.lap_data_parser import decode_lap_data
+
         pkt = _first_packet_by_id(2)
         result = decode_lap_data(memoryview(pkt))
         laps = result["laps"]
@@ -94,6 +102,7 @@ class TestLapDataParser:
 class TestParticipantsParser:
     def test_participants_has_participant_list(self):
         from src.udp_parser.packet_parsers.participants_parser import decode_participants
+
         pkt = _first_packet_by_id(4)
         result = decode_participants(memoryview(pkt))
         assert "participants" in result
@@ -102,6 +111,7 @@ class TestParticipantsParser:
 
     def test_participant_has_name_field(self):
         from src.udp_parser.packet_parsers.participants_parser import decode_participants
+
         pkt = _first_packet_by_id(4)
         result = decode_participants(memoryview(pkt))
         parts = result["participants"]

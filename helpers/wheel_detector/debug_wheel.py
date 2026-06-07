@@ -5,21 +5,18 @@ from __future__ import annotations
 
 import ctypes
 import json
-import shutil
 import subprocess
 import sys
 import threading
-import time
 from ctypes import wintypes
 from pathlib import Path
 from typing import Iterable, Iterator
-
 
 HELPER_REL_PATH = Path("helpers") / "wheel_detector" / "bin" / "WheelHelper.exe"
 
 
 RIDI_DEVICENAME = 0x20000007
-RIDI_DEVICEINFO = 0x2000000b
+RIDI_DEVICEINFO = 0x2000000B
 
 
 class RAWINPUTDEVICELIST(ctypes.Structure):
@@ -114,9 +111,7 @@ def _list_raw_input_devices() -> None:
     print(f"Found {count.value} raw input device(s):")
     for dev in devices:
         name_size = wintypes.UINT(0)
-        user32.GetRawInputDeviceInfoW(
-            dev.hDevice, RIDI_DEVICENAME, None, ctypes.byref(name_size)
-        )
+        user32.GetRawInputDeviceInfoW(dev.hDevice, RIDI_DEVICENAME, None, ctypes.byref(name_size))
         name = ""
         if name_size.value:
             buffer = ctypes.create_unicode_buffer(name_size.value)

@@ -1,0 +1,80 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",   # line too long — let formatter handle it
+    "B008",   # do not perform function call in default arguments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "E701"]   # compact one-liners common in test helpers
+"helpers/*" = ["B", "UP"]   # helper scripts can be looser
+# Struct-offset tracking pattern: `field = unpack(...); offset += size` — intentional
+"src/udp_parser/packet_parsers/*" = ["E702"]
+# dotenv/sys.path must be set before downstream imports — intentional E402
+"src/voice_pipeline/agent.py" = ["E402"]
+"src/voice_pipeline/stt.py" = ["E402"]
+"src/voice_pipeline/tts.py" = ["E402"]
+"src/mcp/server.py" = ["E402"]
+"tests/fixtures/build_fixture.py" = ["E701", "E702"]
+"tests/helpers.py" = ["E701", "E702"]
+"tests/unit/test_parsers.py" = ["E702"]
+# Manual dev scripts — sys.path set up before project imports
+"tests/live_telemetry.py" = ["E402"]
+"tests/text_agent.py" = ["E402"]
+
+# ── mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+files = ["src/mcp/functions", "src/udp_parser"]
+# Useful subset of strict — without requiring TypedDicts for every UDP packet dict
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+no_implicit_optional = true
+# `Any` flows freely from the packet layer (struct → dict[str, Any]) — accepted by design
+disallow_any_generics = false
+warn_return_any = false
+
+# live_data_engine and packet parsers are out of our declared check scope
+[[tool.mypy.overrides]]
+module = ["src.live_data_engine.*", "src.udp_parser.packet_parsers.*"]
+ignore_errors = true
+
+# Third-party libs that ship no stubs
+[[tool.mypy.overrides]]
+module = [
+    "fastmcp.*",
+    "agent_framework.*",
+    "deepgram.*",
+    "flask.*",
+    "werkzeug.*",
+    "openai.*",
+]
+ignore_missing_imports = true
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/ui/*", "src/__init__.py"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "\\.\\.\\.",
+]

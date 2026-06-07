@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from inspect import Signature, signature
-from typing import Any, Callable, get_type_hints
+from typing import Any, get_type_hints
 
 from fastmcp import FastMCP
 
 from src.live_data_engine.capture import F1TelemetryCapture
 from src.mcp import functions as mcp_functions
-
 
 TOOL_FUNCTIONS = [
     "get_context_frame",
@@ -66,9 +66,7 @@ def register_mcp_tools(mcp: FastMCP, capture: F1TelemetryCapture) -> None:
         params = list(base_sig.parameters.values())[1:]
         type_hints = get_type_hints(tool_func, globalns=tool_func.__globals__)
         tool_params = [
-            param.replace(
-                annotation=type_hints.get(param.name, param.annotation)
-            )
+            param.replace(annotation=type_hints.get(param.name, param.annotation))
             for param in params
         ]
         return_annotation = type_hints.get("return", base_sig.return_annotation)
@@ -86,7 +84,7 @@ def register_mcp_tools(mcp: FastMCP, capture: F1TelemetryCapture) -> None:
         func_globals.update({"tool_func": tool_func, "capture": capture})
         func_code = f"""
 def generated_tool({param_defs}):
-    return tool_func(capture{', ' if param_names else ''}{param_names})
+    return tool_func(capture{", " if param_names else ""}{param_names})
 """
         exec_globals: dict[str, Any] = {}
         exec(func_code, func_globals, exec_globals)
@@ -99,6 +97,7 @@ def generated_tool({param_defs}):
             name=tool_func.__name__,
             description=TOOL_DESCRIPTIONS.get(tool_func.__name__),
         )(wrapper)
+
     for name in TOOL_FUNCTIONS:
         func = getattr(mcp_functions, name)
         bind(func)

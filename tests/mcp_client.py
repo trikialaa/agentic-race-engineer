@@ -134,10 +134,7 @@ async def main_with_url(url: str, full: bool = False):
 
         call_plan = [("get_context_frame", "get_context_frame", {})]
         if full and tool_names:
-            call_plan = [
-                (name, name, {})
-                for name in sorted(tool_names)
-            ]
+            call_plan = [(name, name, {}) for name in sorted(tool_names)]
         elif full:
             call_plan.extend(
                 [

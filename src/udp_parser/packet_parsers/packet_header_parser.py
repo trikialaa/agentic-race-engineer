@@ -38,11 +38,13 @@ PACKET_ID = {
     15: "Lap Positions",
 }
 
+
 def read_cstring(b: bytes) -> str:
-    i = b.find(b'\x00')
+    i = b.find(b"\x00")
     if i == -1:
-        return b.decode('utf-8', errors='ignore')
-    return b[:i].decode('utf-8', errors='ignore')
+        return b.decode("utf-8", errors="ignore")
+    return b[:i].decode("utf-8", errors="ignore")
+
 
 @dataclass
 class PacketHeader:

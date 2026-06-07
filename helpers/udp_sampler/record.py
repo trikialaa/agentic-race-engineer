@@ -1,10 +1,10 @@
 # capture_f1_udp.py
+import datetime
 import os
 import socket
-import datetime
 
 UDP_IP = "0.0.0.0"  # listen on all interfaces
-UDP_PORT = 20777    # default port for F1 25 telemetry
+UDP_PORT = 20777  # default port for F1 25 telemetry
 
 capture_dir = os.path.join("helpers", "udp_sampler", "capture_data")
 os.makedirs(capture_dir, exist_ok=True)

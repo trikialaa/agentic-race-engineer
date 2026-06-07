@@ -4,35 +4,34 @@ import socket
 import threading
 import time
 from collections import deque
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any
 
 from src.live_data_engine.cache import CarHistoryBuffers, SessionStore
 from src.live_data_engine.query import RaceStateView
 from src.udp_parser import (
     PacketHeader,
-    PACKET_ID,
-    decode_motion,
-    decode_session,
-    decode_lap_data,
-    decode_event,
-    decode_participants,
-    decode_car_setups,
-    decode_car_telemetry,
-    decode_car_status,
-    decode_final_classification,
-    decode_lobby_info,
     decode_car_damage,
-    decode_session_history,
-    decode_motion_ex,
-    decode_tyre_sets,
-    decode_time_trial,
+    decode_car_setups,
+    decode_car_status,
+    decode_car_telemetry,
+    decode_event,
+    decode_final_classification,
+    decode_lap_data,
     decode_lap_positions,
+    decode_lobby_info,
+    decode_motion,
+    decode_motion_ex,
+    decode_participants,
+    decode_session,
+    decode_session_history,
+    decode_time_trial,
+    decode_tyre_sets,
 )
 from src.udp_parser.constants import (
     EVENT_CODES,
-    SESSION_WATCH_KEYS,
     SESSION_FORECAST_KEYS,
     SESSION_MARSHAL_KEYS,
+    SESSION_WATCH_KEYS,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ PACKET_TYPES = {
 
 class F1TelemetryCapture:
     """Captures and stores F1 telemetry data from UDP packets"""
-    
+
     def __init__(self, bind_ip: str = "0.0.0.0", port: int = 20777):
         self.bind_ip = bind_ip
         self.port = port
@@ -70,9 +69,9 @@ class F1TelemetryCapture:
         self.packet_counts = {pid: 0 for pid in PACKET_TYPES.keys()}
         self.unknown_packets = 0
         self.error_count = 0
-        self.last_header: Optional[Dict[str, Any]] = None
-        self.last_error: Optional[str] = None
-        self.format_mismatch: Optional[int] = None
+        self.last_header: dict[str, Any] | None = None
+        self.last_error: str | None = None
+        self.format_mismatch: int | None = None
 
         self.player_car_index = 0
         self.last_update = time.time()
@@ -123,9 +122,11 @@ class F1TelemetryCapture:
             },
             "lap_positions": {"positions": [], "numLaps": 0, "lapStart": 0},
             "final_classification": None,
-            "session_history": None
+            "session_history": None,
         }
-        self.session_history_by_car: List[Optional[Dict[str, Any]]] = [None for _ in range(self.max_cars)]
+        self.session_history_by_car: list[dict[str, Any] | None] = [
+            None for _ in range(self.max_cars)
+        ]
         self.classified_events = {
             "critical": deque(maxlen=self.events_buffer_size),
             "relevant": deque(maxlen=self.events_buffer_size),
@@ -133,8 +134,8 @@ class F1TelemetryCapture:
         }
         self.classified_event_stream = deque(maxlen=self.events_buffer_size * 2)
         self._event_dedupe_ttl_s = 2.0
-        self._event_last_emitted: Dict[str, float] = {}
-        self._last_player_yellow: Optional[bool] = None
+        self._event_last_emitted: dict[str, float] = {}
+        self._last_player_yellow: bool | None = None
 
         # Track last seen states per car
         self._last_lap_num = [0 for _ in range(self.max_cars)]
@@ -142,14 +143,14 @@ class F1TelemetryCapture:
         self._last_pit_status = [None for _ in range(self.max_cars)]
         self._presence_state = "neither"
         self._presence_reason = "stale_or_no_packets"
-        self._presence_candidate_state: Optional[str] = None
-        self._presence_candidate_reason: Optional[str] = None
+        self._presence_candidate_state: str | None = None
+        self._presence_candidate_reason: str | None = None
         self._presence_candidate_count = 0
-        self._presence_last_transition: Optional[float] = None
+        self._presence_last_transition: float | None = None
 
         self.query = RaceStateView(self)
 
-    def _event_vehicle_indices(self, details: Any) -> List[int]:
+    def _event_vehicle_indices(self, details: Any) -> list[int]:
         if not isinstance(details, dict):
             return []
         idxs = []
@@ -184,7 +185,9 @@ class F1TelemetryCapture:
         telemetry = self.data.get("car_telemetry", {}).get("carTelemetry", []) or []
         if not (0 <= self.player_car_index < len(laps)):
             return False
-        player_lap = laps[self.player_car_index] if isinstance(laps[self.player_car_index], dict) else {}
+        player_lap = (
+            laps[self.player_car_index] if isinstance(laps[self.player_car_index], dict) else {}
+        )
         player_pos = player_lap.get("carPosition")
         if not isinstance(player_pos, int) or player_pos <= 0:
             return False
@@ -193,7 +196,11 @@ class F1TelemetryCapture:
             return False
         player_speed = 0.0
         if 0 <= self.player_car_index < len(telemetry):
-            tel = telemetry[self.player_car_index] if isinstance(telemetry[self.player_car_index], dict) else {}
+            tel = (
+                telemetry[self.player_car_index]
+                if isinstance(telemetry[self.player_car_index], dict)
+                else {}
+            )
             sp = tel.get("speedKph")
             if isinstance(sp, (int, float)):
                 player_speed = float(sp) / 3.6
@@ -218,7 +225,9 @@ class F1TelemetryCapture:
                 return True
         return False
 
-    def _classify_event_locked(self, code: str, details: Dict[str, Any], event_name: str = "") -> str:
+    def _classify_event_locked(
+        self, code: str, details: dict[str, Any], event_name: str = ""
+    ) -> str:
         ignored = {"SPTP", "FLBK", "BUTN"}
         if code in ignored:
             return "ignored"
@@ -238,14 +247,27 @@ class F1TelemetryCapture:
             penalty_name = str(details.get("penaltyTypeName") or "").lower()
             penalty_time = details.get("time")
             if involves_player:
-                if any(token in penalty_name for token in ("drive through", "stop go", "disqualified", "grid", "time penalty")):
+                if any(
+                    token in penalty_name
+                    for token in (
+                        "drive through",
+                        "stop go",
+                        "disqualified",
+                        "grid",
+                        "time penalty",
+                    )
+                ):
                     return "critical"
                 if isinstance(penalty_time, int) and penalty_time > 0:
                     return "critical"
                 return "relevant"
             return "relevant" if nearby else "informational"
         if code in {"OVTK", "DRSE", "DRSD", "TMPT", "FTLP", "RCWN"}:
-            return "relevant" if (involves_player or nearby or code in {"DRSE", "DRSD", "RCWN"}) else "informational"
+            return (
+                "relevant"
+                if (involves_player or nearby or code in {"DRSE", "DRSD", "RCWN"})
+                else "informational"
+            )
         if code in {"SSTA", "SEND", "STLG", "LGOT", "DTSV", "SGSV"}:
             return "informational"
         if code == "YELW":
@@ -254,7 +276,9 @@ class F1TelemetryCapture:
             return "informational"
         return "informational"
 
-    def _emit_classified_event_locked(self, code: str, event_name: str, details: Dict[str, Any], now: float) -> None:
+    def _emit_classified_event_locked(
+        self, code: str, event_name: str, details: dict[str, Any], now: float
+    ) -> None:
         severity = self._classify_event_locked(code, details, event_name=event_name)
         if severity == "ignored":
             return
@@ -267,7 +291,9 @@ class F1TelemetryCapture:
         self._event_last_emitted[key] = now
         if len(self._event_last_emitted) > 500:
             cutoff = now - 60.0
-            self._event_last_emitted = {k: v for k, v in self._event_last_emitted.items() if v > cutoff}
+            self._event_last_emitted = {
+                k: v for k, v in self._event_last_emitted.items() if v > cutoff
+            }
         entry = {
             "code": code,
             "eventName": event_name,
@@ -280,17 +306,17 @@ class F1TelemetryCapture:
         if severity in self.classified_events:
             self.classified_events[severity].appendleft(entry)
         self.classified_event_stream.appendleft(entry)
-        
+
     def start_capture(self):
         """Start capturing telemetry data in a background thread"""
         if self.running:
             return
-            
+
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
         logger.info(f"Started F1 telemetry capture on {self.bind_ip}:{self.port}")
-        
+
     def stop_capture(self):
         """Stop capturing telemetry data"""
         self.running = False
@@ -299,14 +325,14 @@ class F1TelemetryCapture:
         if self.thread:
             self.thread.join(timeout=1.0)
         logger.info("Stopped F1 telemetry capture")
-        
+
     def _capture_loop(self):
         """Main capture loop running in background thread"""
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock.bind((self.bind_ip, self.port))
             self.sock.settimeout(0.1)
-            
+
             while self.running:
                 try:
                     data, addr = self.sock.recvfrom(8192)
@@ -317,7 +343,9 @@ class F1TelemetryCapture:
                     pid = hdr.m_packetId
                     if hdr.m_packetFormat != 2025 and self.format_mismatch != hdr.m_packetFormat:
                         self.format_mismatch = hdr.m_packetFormat
-                        logger.warning(f"Packet format {hdr.m_packetFormat} differs from expected 2025; decoders may be incompatible")
+                        logger.warning(
+                            f"Packet format {hdr.m_packetFormat} differs from expected 2025; decoders may be incompatible"
+                        )
                     self.last_header = {
                         "format": hdr.m_packetFormat,
                         "packetVersion": getattr(hdr, "m_packetVersion", None),
@@ -331,7 +359,7 @@ class F1TelemetryCapture:
                     }
 
                     # Update player car index
-                    if hasattr(hdr, 'm_playerCarIndex'):
+                    if hasattr(hdr, "m_playerCarIndex"):
                         with self.lock:
                             self.player_car_index = hdr.m_playerCarIndex
 
@@ -343,21 +371,21 @@ class F1TelemetryCapture:
                         self.packet_counts[pid] = self.packet_counts.get(pid, 0) + 1
                     else:
                         self.unknown_packets += 1
-                        
-                except socket.timeout:
+
+                except TimeoutError:
                     continue
                 except Exception as e:
                     self.error_count += 1
                     self.last_error = str(e)
                     logger.error(f"Error processing packet: {e}")
-                    
+
         except Exception as e:
             logger.error(f"Error in capture loop: {e}")
         finally:
             if self.sock:
                 self.sock.close()
-                
-    def _update_data(self, packet_type: str, data: Dict[str, Any]):
+
+    def _update_data(self, packet_type: str, data: dict[str, Any]):
         """Update stored telemetry data and histories (thread-safe)"""
         now = time.time()
         with self.lock:
@@ -372,7 +400,9 @@ class F1TelemetryCapture:
                 if event_code and event_code != "NULL":
                     details = data.get("details", {})
                     event_name = EVENT_CODES.get(event_code, event_code)
-                    self._emit_classified_event_locked(event_code, event_name, details if isinstance(details, dict) else {}, now)
+                    self._emit_classified_event_locked(
+                        event_code, event_name, details if isinstance(details, dict) else {}, now
+                    )
                     if event_code in {"SPTP", "FLBK", "BUTN"}:
                         self.last_update = now
                         return
@@ -380,11 +410,13 @@ class F1TelemetryCapture:
                         "code": event_code,
                         "eventName": event_name,
                         "details": details,
-                        "time": time.strftime("%H:%M:%S")
+                        "time": time.strftime("%H:%M:%S"),
                     }
                     self.data[packet_type]["eventHistory"].insert(0, event_entry)
                     # Keep only last N events
-                    self.data[packet_type]["eventHistory"] = self.data[packet_type]["eventHistory"][: self.events_buffer_size]
+                    self.data[packet_type]["eventHistory"] = self.data[packet_type]["eventHistory"][
+                        : self.events_buffer_size
+                    ]
                 self.last_update = now
                 return
 
@@ -421,14 +453,21 @@ class F1TelemetryCapture:
                 prev_sc = prev_snapshot.get("safetyCarStatusName")
                 curr_sc = new_snapshot.get("safetyCarStatusName")
                 if curr_sc != prev_sc:
-                    if prev_sc and prev_sc.lower() in ("vsc", "virtual safety car", "sc", "safety car") and (
-                        not curr_sc or curr_sc.lower() == "none"
+                    if (
+                        prev_sc
+                        and prev_sc.lower() in ("vsc", "virtual safety car", "sc", "safety car")
+                        and (not curr_sc or curr_sc.lower() == "none")
                     ):
                         for sp in reversed(safety_periods):
                             if sp.get("endTime") is None:
                                 sp["endTime"] = now
                                 break
-                    if curr_sc and curr_sc.lower() in ("vsc", "virtual safety car", "sc", "safety car"):
+                    if curr_sc and curr_sc.lower() in (
+                        "vsc",
+                        "virtual safety car",
+                        "sc",
+                        "safety car",
+                    ):
                         sp_type = "VSC" if "vsc" in curr_sc.lower() else "SC"
                         safety_periods.append({"type": sp_type, "startTime": now, "endTime": None})
 
@@ -446,7 +485,10 @@ class F1TelemetryCapture:
                         break
                 if forecast_samples is not None:
                     session_store.forecast_latest = forecast_samples
-                    should_append = not forecast_history or forecast_history[0].get("samples") != forecast_samples
+                    should_append = (
+                        not forecast_history
+                        or forecast_history[0].get("samples") != forecast_samples
+                    )
                     if should_append:
                         forecast_history.appendleft({"time": now, "samples": forecast_samples})
 
@@ -458,7 +500,9 @@ class F1TelemetryCapture:
                 if marshal_data is not None:
                     new_marshal = []
                     if isinstance(marshal_data, list):
-                        new_marshal = [dict(zone) if isinstance(zone, dict) else zone for zone in marshal_data]
+                        new_marshal = [
+                            dict(zone) if isinstance(zone, dict) else zone for zone in marshal_data
+                        ]
                     else:
                         new_marshal = [marshal_data]
                     session_store.marshal_latest = new_marshal
@@ -466,24 +510,38 @@ class F1TelemetryCapture:
                         for idx, zone in enumerate(new_marshal):
                             curr_flag = None
                             if isinstance(zone, dict):
-                                curr_flag = zone.get("flagColor") or zone.get("zoneFlagName") or zone.get("flag")
+                                curr_flag = (
+                                    zone.get("flagColor")
+                                    or zone.get("zoneFlagName")
+                                    or zone.get("flag")
+                                )
                             else:
                                 curr_flag = zone
                             prev_flag = None
                             if idx < len(prev_marshal):
                                 prev_zone = prev_marshal[idx]
                                 if isinstance(prev_zone, dict):
-                                    prev_flag = prev_zone.get("flagColor") or prev_zone.get("zoneFlagName") or prev_zone.get("flag")
+                                    prev_flag = (
+                                        prev_zone.get("flagColor")
+                                        or prev_zone.get("zoneFlagName")
+                                        or prev_zone.get("flag")
+                                    )
                                 else:
                                     prev_flag = prev_zone
                             if curr_flag != prev_flag:
-                                marshal_changes.appendleft({"time": now, "zoneIndex": idx, "flag": curr_flag})
+                                marshal_changes.appendleft(
+                                    {"time": now, "zoneIndex": idx, "flag": curr_flag}
+                                )
                 # Synthetic yellow event from session marshal/player status context
                 player_yellow = None
                 try:
                     status_data = self.data.get("car_status", {}).get("carStatus", []) or []
                     if 0 <= self.player_car_index < len(status_data):
-                        stat = status_data[self.player_car_index] if isinstance(status_data[self.player_car_index], dict) else {}
+                        stat = (
+                            status_data[self.player_car_index]
+                            if isinstance(status_data[self.player_car_index], dict)
+                            else {}
+                        )
                         has_yellow = stat.get("hasYellowFlag")
                         if isinstance(has_yellow, bool):
                             player_yellow = has_yellow
@@ -546,7 +604,7 @@ class F1TelemetryCapture:
                 if not history or history[0].get("lapNum") != curr_lap:
                     history.insert(0, {"lapNum": curr_lap, "samples": []})
                     # Trim to last N laps
-                    del history[self.buffer_sizes["motion_laps"]:]
+                    del history[self.buffer_sizes["motion_laps"] :]
                 # Build a sample for the player
                 try:
                     cars = motion.get("cars", []) or []
@@ -562,9 +620,7 @@ class F1TelemetryCapture:
                 history[0]["samples"].append(sample)
                 motion_limit = self.buffer_sizes.get("motion_samples", 0)
                 if motion_limit and len(history[0]["samples"]) > motion_limit:
-                    del history[0]["samples"][
-                        : len(history[0]["samples"]) - motion_limit
-                    ]
+                    del history[0]["samples"][: len(history[0]["samples"]) - motion_limit]
 
             if packet_type == "car_telemetry":
                 cars = data.get("carTelemetry", []) or []
@@ -616,7 +672,15 @@ class F1TelemetryCapture:
                     def num_increased(prev_val, curr_val) -> bool:
                         try:
                             if isinstance(curr_val, (list, tuple)):
-                                return any((curr_val[i] if i < len(curr_val) else 0) > (prev_val[i] if isinstance(prev_val, (list, tuple)) and i < len(prev_val) else 0) for i in range(len(curr_val)))
+                                return any(
+                                    (curr_val[i] if i < len(curr_val) else 0)
+                                    > (
+                                        prev_val[i]
+                                        if isinstance(prev_val, (list, tuple)) and i < len(prev_val)
+                                        else 0
+                                    )
+                                    for i in range(len(curr_val))
+                                )
                             # Treat missing prev as 0
                             pv = prev_val if isinstance(prev_val, (int, float)) else 0
                             cv = curr_val if isinstance(curr_val, (int, float)) else pv
@@ -630,7 +694,9 @@ class F1TelemetryCapture:
                                 increased = True
                                 break
                     if increased:
-                        dq.append({"time": now, "data": dict(dmg) if isinstance(dmg, dict) else dmg})
+                        dq.append(
+                            {"time": now, "data": dict(dmg) if isinstance(dmg, dict) else dmg}
+                        )
 
             elif packet_type == "lap_data":
                 # Always set latest
@@ -638,7 +704,9 @@ class F1TelemetryCapture:
                 self.data["lap_data"]["laps"] = laps
 
                 # Ensure per-car history structure exists
-                if "history" not in self.data["lap_data"] or not isinstance(self.data["lap_data"].get("history"), list):
+                if "history" not in self.data["lap_data"] or not isinstance(
+                    self.data["lap_data"].get("history"), list
+                ):
                     self.data["lap_data"]["history"] = [[] for _ in range(len(laps) or 22)]
                 history = self.data["lap_data"]["history"]
                 # Resize history if car count changes
@@ -680,23 +748,28 @@ class F1TelemetryCapture:
                         }
                         # Append and trim per-car ring buffer
                         history[idx].insert(0, entry)
-                        del history[idx][self.buffer_sizes["lap_history"]:]
+                        del history[idx][self.buffer_sizes["lap_history"] :]
                         self._last_lap_num[idx] = curr_num
 
                     # Detect position changes
                     try:
-                        pos = int(lap.get("carPosition")) if lap.get("carPosition") is not None else 0
+                        pos = (
+                            int(lap.get("carPosition")) if lap.get("carPosition") is not None else 0
+                        )
                     except Exception:
                         pos = 0
                     if pos and self._last_position[idx] and pos != self._last_position[idx]:
-                        pos_changes.insert(0, {
-                            "time": now,
-                            "carIndex": idx,
-                            "fromPos": self._last_position[idx],
-                            "toPos": pos,
-                            "lapNum": curr_num,
-                        })
-                        del pos_changes[self.buffer_sizes["position_changes"]:]
+                        pos_changes.insert(
+                            0,
+                            {
+                                "time": now,
+                                "carIndex": idx,
+                                "fromPos": self._last_position[idx],
+                                "toPos": pos,
+                                "lapNum": curr_num,
+                            },
+                        )
+                        del pos_changes[self.buffer_sizes["position_changes"] :]
                     if pos:
                         self._last_position[idx] = pos
 
@@ -713,13 +786,16 @@ class F1TelemetryCapture:
                             pit_flag = None
                     prev_pit = self._last_pit_status[idx]
                     if pit_flag is not None and prev_pit is not None and pit_flag != prev_pit:
-                        pit_events.insert(0, {
-                            "time": now,
-                            "carIndex": idx,
-                            "lapNum": curr_num,
-                            "type": "enter" if pit_flag else "exit",
-                        })
-                        del pit_events[self.buffer_sizes["pit_events"]:]
+                        pit_events.insert(
+                            0,
+                            {
+                                "time": now,
+                                "carIndex": idx,
+                                "lapNum": curr_num,
+                                "type": "enter" if pit_flag else "exit",
+                            },
+                        )
+                        del pit_events[self.buffer_sizes["pit_events"] :]
                     if pit_flag is not None:
                         self._last_pit_status[idx] = pit_flag
 
@@ -738,5 +814,5 @@ class F1TelemetryCapture:
             elif packet_type == "session":
                 # History now kept inside self.data["session"]["changes"], no external history buffer update needed
                 pass
-        
+
         pass

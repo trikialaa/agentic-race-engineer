@@ -1,10 +1,11 @@
 import asyncio
 import logging
+import os
 import signal
 import sys
 import threading
-import os
-from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 # Ensure src/ is importable when running tests from repo root

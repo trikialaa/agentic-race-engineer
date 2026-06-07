@@ -10,8 +10,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List, Optional
 
 from werkzeug.serving import make_server
 
@@ -50,7 +50,7 @@ def _wait_for_server_ready(host: str, port: int, timeout: float = 5.0) -> None:
 
 
 def _launch_electron(
-    command: Iterable[str], cwd: Path, env_overrides: Optional[dict[str, str]] = None
+    command: Iterable[str], cwd: Path, env_overrides: dict[str, str] | None = None
 ) -> subprocess.Popen:
     env = os.environ.copy()
     if env_overrides:
@@ -71,14 +71,14 @@ def _ask_restart() -> bool:
 def _run_stack(
     host: str,
     port: int,
-    electron_command: List[str],
+    electron_command: list[str],
     electron_cwd: Path,
     skip_electron: bool,
 ) -> int:
     web_transcribe_server.ensure_agent_ready()
     http_server, server_thread = _start_http_server(host, port)
     _wait_for_server_ready(host, port)
-    electron_proc: Optional[subprocess.Popen] = None
+    electron_proc: subprocess.Popen | None = None
 
     try:
         if not skip_electron:
@@ -113,7 +113,12 @@ def main():
     parser = argparse.ArgumentParser(description="Start the race engineer UI stack.")
     _cfg = load_config()
     parser.add_argument("--host", default="127.0.0.1", help="HTTP host for the Flask server.")
-    parser.add_argument("--port", type=int, default=_cfg.get("serverPort", 8080), help="HTTP port for the Flask server.")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=_cfg.get("serverPort", 8080),
+        help="HTTP port for the Flask server.",
+    )
     parser.add_argument(
         "--electron-cmd",
         nargs="+",
@@ -142,7 +147,9 @@ def main():
 
     while True:
         try:
-            _run_stack(args.host, args.port, args.electron_cmd, args.electron_cwd, args.skip_electron)
+            _run_stack(
+                args.host, args.port, args.electron_cmd, args.electron_cwd, args.skip_electron
+            )
         except KeyboardInterrupt:
             break
         if args.skip_electron:

@@ -3,20 +3,19 @@ Unit tests for CalloutMonitor decision logic.
 The LLM (_fire) is stubbed — we test WHICH events are selected and
 suppressed, not what the LLM says.
 """
+
 from __future__ import annotations
 
 import queue
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from src.voice_pipeline.callouts import (
-    CalloutMonitor,
     _DEFAULT_EVENT_COOLDOWN,
     _EVENT_COOLDOWNS,
     _GLOBAL_RATE_LIMIT_S,
     _PTT_SUPPRESS_S,
+    CalloutMonitor,
 )
 
 

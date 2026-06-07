@@ -5,7 +5,8 @@ import os
 import queue
 import threading
 import time
-from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -73,9 +74,7 @@ def get_agent_reply(transcript: str, timeout: float = 8.0) -> str | None:
     if not ensure_agent_ready():
         return "Race engineer unavailable"
     try:
-        return run_agent_coroutine(
-            race_engineer_agent.reply_async(transcript), timeout
-        )
+        return run_agent_coroutine(race_engineer_agent.reply_async(transcript), timeout)
     except FuturesTimeoutError:
         logging.warning("Race engineer reply timed out")
         return "Race engineer timed out"
@@ -103,13 +102,17 @@ def transcribe():
     audio_file = request.files["audio_data"]
     audio_payload = audio_file.read()
     stt_start = time.perf_counter()
-    transcript = stt.transcribe_audio(audio_payload, extra_keyterms=race_engineer_agent.get_stt_keyterms())
+    transcript = stt.transcribe_audio(
+        audio_payload, extra_keyterms=race_engineer_agent.get_stt_keyterms()
+    )
     stt_latency_ms = round((time.perf_counter() - stt_start) * 1000, 1)
-    return jsonify({
-        "transcript": transcript,
-        "latency_ms": {"stt": stt_latency_ms},
-        "player": race_engineer_agent.get_player_info(),
-    })
+    return jsonify(
+        {
+            "transcript": transcript,
+            "latency_ms": {"stt": stt_latency_ms},
+            "player": race_engineer_agent.get_player_info(),
+        }
+    )
 
 
 @app.route("/agent", methods=["POST"])

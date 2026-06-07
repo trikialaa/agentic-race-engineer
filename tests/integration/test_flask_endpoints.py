@@ -6,10 +6,10 @@ Tests:
   - /transcribe rejects with 403 when session not active
   - /callout-stream yields a well-formed callout SSE frame when directly pushed
 """
+
 from __future__ import annotations
 
 import json
-import queue
 
 import pytest
 
@@ -18,6 +18,7 @@ import pytest
 def client():
     """Flask test client with a fresh app import."""
     from src.web.web_transcribe_server import app, callout_queue
+
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c, callout_queue
@@ -58,7 +59,14 @@ class TestCalloutStream:
     def test_callout_stream_returns_200(self, client):
         c, cq = client
         # Push one item so the generator doesn't block
-        cq.put({"type": "callout", "engineer_reply": "Box box.", "display_reply": "Box box.", "playerTeam": "Williams"})
+        cq.put(
+            {
+                "type": "callout",
+                "engineer_reply": "Box box.",
+                "display_reply": "Box box.",
+                "playerTeam": "Williams",
+            }
+        )
         resp = c.get("/callout-stream", headers={"Accept": "text/event-stream"})
         assert resp.status_code == 200
         assert "text/event-stream" in resp.content_type
@@ -74,14 +82,8 @@ class TestCalloutStream:
         }
         cq.put(payload)
 
-        # Read first data chunk from the streaming response
-        with c.application.test_request_context():
-            from src.web.web_transcribe_server import callout_stream
-            # Access the generator directly and read first item
-            gen_resp = callout_stream()
-
-        # Alternatively: read the SSE response bytes until the first data line
-        cq.put(payload)  # replenish since generator consumed the previous one
+        # Read SSE response bytes until the first data line
+        cq.put(payload)  # replenish for the HTTP client below
         with c.get("/callout-stream", headers={"Accept": "text/event-stream"}) as resp:
             raw = b""
             for chunk in resp.response:
@@ -89,8 +91,8 @@ class TestCalloutStream:
                 if b"data:" in raw:
                     break
 
-        line = next(l for l in raw.decode().splitlines() if l.startswith("data:"))
-        msg = json.loads(line[len("data:"):].strip())
+        line = next(ln for ln in raw.decode().splitlines() if ln.startswith("data:"))
+        msg = json.loads(line[len("data:") :].strip())
         assert msg["type"] == "callout"
         assert "engineer_reply" in msg
         assert "playerTeam" in msg

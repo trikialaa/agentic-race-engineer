@@ -1,15 +1,17 @@
 """Unit tests for src/mcp/functions/_shared.py helpers."""
+
 import pytest
+
 from src.mcp.functions._shared import (
-    _strip_nulls,
-    _round,
-    _clock_now,
-    _parse_lap_time_seconds,
-    _normalize_tyre_compound,
-    _pit_status_value,
     _abs_round,
-    _normalize_safety_car,
+    _clock_now,
     _normalize_flag,
+    _normalize_safety_car,
+    _normalize_tyre_compound,
+    _parse_lap_time_seconds,
+    _pit_status_value,
+    _round,
+    _strip_nulls,
 )
 
 
@@ -77,15 +79,26 @@ class TestParseLapTimeSeconds:
 
 
 class TestNormalizeTyreCompound:
-    @pytest.mark.parametrize("inp,expected", [
-        ("soft", "soft"), ("SOFT", "soft"), ("Soft", "soft"),
-        ("medium", "medium"), ("hard", "hard"),
-        ("inter", "inter"), ("intermediate", "inter"),
-        ("wet", "wet"),
-        ("C4", "soft"), ("C3", "medium"), ("C2", "hard"),
-        ("unknown_compound", None),
-        ("", None), (None, None), (42, None),
-    ])
+    @pytest.mark.parametrize(
+        "inp,expected",
+        [
+            ("soft", "soft"),
+            ("SOFT", "soft"),
+            ("Soft", "soft"),
+            ("medium", "medium"),
+            ("hard", "hard"),
+            ("inter", "inter"),
+            ("intermediate", "inter"),
+            ("wet", "wet"),
+            ("C4", "soft"),
+            ("C3", "medium"),
+            ("C2", "hard"),
+            ("unknown_compound", None),
+            ("", None),
+            (None, None),
+            (42, None),
+        ],
+    )
     def test_compound_mapping(self, inp, expected):
         assert _normalize_tyre_compound(inp) == expected
 
@@ -116,30 +129,36 @@ class TestAbsRound:
 
 
 class TestNormalizeSafetyCar:
-    @pytest.mark.parametrize("inp,expected", [
-        ("Safety Car", "sc"),
-        ("Full Safety Car", "sc"),
-        ("Virtual Safety Car", "vsc"),
-        ("VSC", "vsc"),
-        ("No Safety Car", "none"),
-        ("none", "none"),
-        ("", "none"),
-        (None, "none"),
-        (42, "none"),
-    ])
+    @pytest.mark.parametrize(
+        "inp,expected",
+        [
+            ("Safety Car", "sc"),
+            ("Full Safety Car", "sc"),
+            ("Virtual Safety Car", "vsc"),
+            ("VSC", "vsc"),
+            ("No Safety Car", "none"),
+            ("none", "none"),
+            ("", "none"),
+            (None, "none"),
+            (42, "none"),
+        ],
+    )
     def test_safety_car_values(self, inp, expected):
         assert _normalize_safety_car(inp) == expected
 
 
 class TestNormalizeFlag:
-    @pytest.mark.parametrize("inp,expected", [
-        ("none", "none"),
-        ("", "none"),
-        ("invalid/unknown", "none"),
-        ("yellow", "yellow"),
-        ("GREEN", "green"),
-        (None, "none"),
-        (0, "none"),
-    ])
+    @pytest.mark.parametrize(
+        "inp,expected",
+        [
+            ("none", "none"),
+            ("", "none"),
+            ("invalid/unknown", "none"),
+            ("yellow", "yellow"),
+            ("GREEN", "green"),
+            (None, "none"),
+            (0, "none"),
+        ],
+    )
     def test_flag_values(self, inp, expected):
         assert _normalize_flag(inp) == expected
