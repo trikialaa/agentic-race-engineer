@@ -1,0 +1,70 @@
+{
+  "context": {
+    "session": {
+      "type": "Race",
+      "track": "Catalunya",
+      "lap": {
+        "current": 1,
+        "total": 5
+      },
+      "lapsRemaining": 4,
+      "phase": "not_racing"
+    },
+    "player": {
+      "id": 19,
+      "name": "SAINZ",
+      "team": "Williams",
+      "position": {
+        "current": 5,
+        "total": 20
+      },
+      "gap": {
+        "frontS": 1.09,
+        "backS": 0.5,
+        "frontDriver": {
+          "name": "VERSTAPPEN",
+          "position": 4
+        },
+        "backDriver": {
+          "name": "HAMILTON",
+          "position": 6
+        }
+      },
+      "pace": {
+        "lastLapS": "unknown",
+        "deltaFrontS": "unknown",
+        "deltaBackS": "unknown"
+      },
+      "car": {
+        "tyre": {
+          "compound": "soft",
+          "ageLaps": 0,
+          "wearLevel": "low"
+        },
+        "fuel": {
+          "status": "nominal",
+          "lapsRemaining": "unknown",
+          "deltaLaps": "unknown"
+        },
+        "ersPct": 99.7,
+        "damageByPart": {
+          "frontWing": "undamaged",
+          "rearWing": "undamaged",
+          "floor": "undamaged",
+          "diffuser": "undamaged"
+        },
+        "pitStatus": "none"
+      }
+    },
+    "raceControl": {
+      "safetyCar": "none",
+      "flag": "none"
+    },
+    "weather": {
+      "type": "Light Cloud",
+      "trackTempC": 35,
+      "airTempC": 24,
+      "rainRiskNext10mPct": 5
+    }
+  }
+}

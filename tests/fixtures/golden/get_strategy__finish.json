@@ -1,0 +1,105 @@
+{
+  "pitWindow": {
+    "idealLap": "unknown",
+    "latestLap": "unknown",
+    "lapsUntilIdeal": "unknown"
+  },
+  "rejoinPosition": 20,
+  "currentTyre": {
+    "compound": "soft",
+    "ageLaps": 0
+  },
+  "availableSets": [
+    {
+      "compound": "medium",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 725
+    },
+    {
+      "compound": "hard",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 1607
+    },
+    {
+      "compound": "inter",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 4381
+    },
+    {
+      "compound": "wet",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 7479
+    },
+    {
+      "compound": "soft",
+      "wear": 4,
+      "isNew": false,
+      "isFitted": true,
+      "lapDeltaMs": 0
+    },
+    {
+      "compound": "soft",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": -118
+    },
+    {
+      "compound": "soft",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": -118
+    },
+    {
+      "compound": "medium",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 725
+    },
+    {
+      "compound": "inter",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 4381
+    },
+    {
+      "compound": "inter",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 4381
+    },
+    {
+      "compound": "inter",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 4381
+    },
+    {
+      "compound": "wet",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 7479
+    },
+    {
+      "compound": "wet",
+      "wear": 0,
+      "isNew": true,
+      "isFitted": false,
+      "lapDeltaMs": 7479
+    }
+  ]
+}

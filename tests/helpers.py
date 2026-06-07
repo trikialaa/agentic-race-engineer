@@ -1,0 +1,81 @@
+"""Shared test utilities: in-process fixture loader and output masker."""
+from __future__ import annotations
+
+import json
+import struct
+from pathlib import Path
+from typing import Any, Optional
+
+FIXTURE_BIN = Path(__file__).parent / "fixtures" / "race_catalunya_2025.bin"
+MARKERS_JSON = Path(__file__).parent / "fixtures" / "markers.json"
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
+
+HDR_FMT = "<HBBBBBQfIIBB"
+HDR_SIZE = struct.calcsize(HDR_FMT)
+
+_MASK_KEYS = frozenset({"time", "serverTime", "ts", "mode"})
+
+
+def mask(obj: Any) -> Any:
+    """Recursively strip wall-clock and transient fields before golden compare."""
+    if isinstance(obj, dict):
+        return {k: mask(v) for k, v in obj.items() if k not in _MASK_KEYS}
+    if isinstance(obj, list):
+        return [mask(v) for v in obj]
+    return obj
+
+
+def load_markers() -> dict[str, int]:
+    return json.loads(MARKERS_JSON.read_text())
+
+
+def _read_fixture_packets(bin_path: Path = FIXTURE_BIN) -> list[bytes]:
+    data = bin_path.read_bytes()
+    pos = 0; pkts = []
+    while pos + 2 <= len(data):
+        length = int.from_bytes(data[pos:pos + 2], "little"); pos += 2
+        if pos + length > len(data): break
+        pkts.append(data[pos:pos + length]); pos += length
+    return pkts
+
+
+def load_capture_to(frame: Optional[int] = None, bin_path: Path = FIXTURE_BIN):
+    """
+    Return an F1TelemetryCapture fed with fixture packets up to `frame`
+    (inclusive). No UDP socket or thread started — feeds through the same
+    production decode+_update_data path the socket loop uses.
+    """
+    from src.live_data_engine.capture import F1TelemetryCapture, PACKET_TYPES
+    from src.udp_parser import PacketHeader
+
+    cap = F1TelemetryCapture()
+    for pkt in _read_fixture_packets(bin_path):
+        if len(pkt) < HDR_SIZE:
+            continue
+        buf = memoryview(pkt)
+        try:
+            hdr = PacketHeader.from_buf(buf)
+        except Exception:
+            continue
+        if frame is not None and hdr.m_frameIdentifier > frame:
+            break
+        cap.player_car_index = hdr.m_playerCarIndex
+        pid = hdr.m_packetId
+        if pid in PACKET_TYPES:
+            name, decoder = PACKET_TYPES[pid]
+            try:
+                cap._update_data(name, decoder(buf))
+            except Exception:
+                pass
+    return cap
+
+
+def load_golden(tool: str, scenario: str) -> Any:
+    path = GOLDEN_DIR / f"{tool}__{scenario}.json"
+    return json.loads(path.read_text())
+
+
+def reset_lap_times_state() -> None:
+    import src.mcp.functions.lap_times as lt
+    lt._LAP_TIMES_STATE.clear()
+    lt._LAP_TIMES_SESSION_UID = None

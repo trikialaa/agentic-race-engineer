@@ -1,0 +1,30 @@
+{
+  "current": {
+    "weather": "Light Cloud",
+    "trackTempC": 35,
+    "airTempC": 24
+  },
+  "forecast": [
+    {
+      "offsetMin": 0,
+      "weather": "Light Cloud",
+      "rainPct": 5,
+      "trackTempC": 36,
+      "airTempC": 25
+    },
+    {
+      "offsetMin": 5,
+      "weather": "Light Cloud",
+      "rainPct": 5,
+      "trackTempC": 36,
+      "airTempC": 25
+    },
+    {
+      "offsetMin": 10,
+      "weather": "Light Cloud",
+      "rainPct": 5,
+      "trackTempC": 36,
+      "airTempC": 25
+    }
+  ]
+}
