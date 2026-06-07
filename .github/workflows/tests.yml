@@ -52,6 +52,8 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
     env:
+      # Placeholder so DeepgramClient() can instantiate without a real key
+      DEEPGRAM_API_KEY: "placeholder"
       F1_BUFFER_CAR_TELEMETRY: "120"
       F1_BUFFER_CAR_STATUS: "100"
       F1_BUFFER_CAR_DAMAGE: "100"

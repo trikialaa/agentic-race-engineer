@@ -7,11 +7,24 @@ No subprocess, no network.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastmcp import FastMCP
 
 from src.mcp.tools import TOOL_FUNCTIONS, register_mcp_tools
 from tests.helpers import load_capture_to, load_markers
+
+
+def _get_tool_names(mcp: FastMCP) -> set[str]:
+    """Get registered tool names, compatible with fastmcp 2.x and 3.x."""
+    # fastmcp 2.x: internal _tool_manager._tools dict
+    if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+        return set(mcp._tool_manager._tools.keys())
+    # fastmcp 3.x: async list_tools() method
+    tools = asyncio.run(mcp.list_tools())
+    return {t.name for t in tools}
+
 
 MARKERS = load_markers()
 
@@ -26,13 +39,13 @@ def registered_mcp():
 
 
 def test_all_6_tools_registered(registered_mcp):
-    tool_names = set(registered_mcp._tool_manager._tools.keys())
+    tool_names = _get_tool_names(registered_mcp)
     for name in TOOL_FUNCTIONS:
         assert name in tool_names, f"Tool not registered: {name}"
 
 
 def test_no_extra_tools_registered(registered_mcp):
-    tool_names = set(registered_mcp._tool_manager._tools.keys())
+    tool_names = _get_tool_names(registered_mcp)
     assert tool_names == set(TOOL_FUNCTIONS)
 
 
