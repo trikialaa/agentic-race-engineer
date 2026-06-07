@@ -1,306 +1,294 @@
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #f2f2f2;
-  background-color: #0d0d0d;
+  --red:        #E10600;
+  --red-dim:    rgba(225, 6, 0, 0.12);
+  --bg:         #0c0c10;
+  --surface:    #16161c;
+  --border:     rgba(255, 255, 255, 0.07);
+  --text:       #efefef;
+  --muted:      rgba(255, 255, 255, 0.36);
+  --yellow:     #fbbf24;
+
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
 }
 
-
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  margin: 0;
   min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+#app {
+  width: 440px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+#app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: var(--red);
+}
+
+.session-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 0.5s, box-shadow 0.5s;
+}
+
+.session-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.55);
+}
+
+/* ── Radio / PTT section ─────────────────────────────────────── */
+#radio-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.25rem 1.5rem 2rem;
+  gap: 0.9rem;
+}
+
+#record-btn {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  background: var(--red-dim);
+  color: var(--red);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s, border-color 0.15s;
+  /* no default browser button styles */
+  outline: none;
 }
 
-main {
-  max-width: 500px;
-  width: 90vw;
-  padding: 2rem;
+#record-btn:hover:not(:disabled) {
+  background: rgba(225, 6, 0, 0.2);
+  box-shadow: 0 0 20px rgba(225, 6, 0, 0.18);
+}
+
+#record-btn:disabled {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.16);
+  background: none;
+  cursor: not-allowed;
+}
+
+#record-btn.recording {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+  box-shadow: 0 0 32px rgba(225, 6, 0, 0.55);
+  transform: scale(1.05);
+}
+
+.mic-icon {
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+}
+
+#record-hint {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--muted);
   text-align: center;
-  border-radius: 16px;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), rgba(13, 13, 13, 0.95));
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-
-h1 {
-  margin-top: 0;
-}
-
-button {
-  border: 0;
-  padding: 1rem 1.5rem;
-  border-radius: 999px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 1rem;
-  background: linear-gradient(135deg, #0094ff, #a100ff);
-  color: white;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.controls {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.controls button {
-  margin-top: 0;
-}
-
-button.recording {
-  background: linear-gradient(135deg, #ff4f4f, #ffdf5e);
-  transform: scale(1.03);
-  box-shadow: 0 0 30px rgba(255, 79, 79, 0.5);
 }
 
 #status {
-  margin-top: 1rem;
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+  min-height: 1.1em;
+  transition: color 0.2s;
 }
 
-#latency {
-  margin-top: 0.35rem;
-  text-align: left;
-  color: rgba(255, 255, 255, 0.6);
+#status.highlight { color: var(--yellow); }
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
 }
 
-.latency-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.latency-grid {
-  margin-top: 0.35rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 0.3rem 0.5rem;
-}
-
-.latency-row {
+/* ── Config section ──────────────────────────────────────────── */
+#config-section {
+  flex: 1;
+  padding: 1.1rem 1.5rem 0.5rem;
   display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 0.25rem 0.35rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
-  font-size: 0.85rem;
-}
-
-section {
-  margin-top: 2rem;
-  text-align: left;
-}
-
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-li {
+  gap: 1rem;
   padding: 0.65rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border);
 }
 
-#status[data-state="highlight"] {
-  color: #ffb703;
+.config-row:last-child { border-bottom: none; }
+
+.config-row--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.7rem 0;
 }
 
-.message {
-  transition: transform 0.15s ease, color 0.15s ease;
+.config-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
-.message.user {
-  color: #c7f1ff;
-}
-
-.message.agent {
-  color: #84ffb2;
-}
-
-/* ── Settings gear button ───────────────────────────────────── */
-#settings-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.5);
+.config-control {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background 0.2s, color 0.2s;
+  gap: 0.5rem;
 }
 
-#settings-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  transform: none;
-}
-
-/* ── Settings panel ─────────────────────────────────────────── */
-#settings-panel {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), rgba(13, 13, 13, 0.98));
-  transform: translateX(100%);
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-  overflow-y: auto;
-  padding: 1.5rem;
-  text-align: left;
-}
-
-#settings-panel.open {
-  transform: translateX(0);
-}
-
-.settings-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1.5rem;
-}
-
-#settings-back {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 1.1rem;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-#settings-back:hover {
-  color: #fff;
-  transform: none;
-}
-
-.settings-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.settings-section {
-  margin-bottom: 1.1rem;
-}
-
-.settings-label {
-  display: block;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 0.35rem;
-}
-
-.settings-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.settings-value {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.settings-action-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0.3rem 0.65rem;
-  margin: 0;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.settings-action-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  transform: none;
-}
-
-.settings-input {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #f2f2f2;
-  font-size: 0.88rem;
-  padding: 0.4rem 0.6rem;
+/* number inputs */
+.config-input {
+  width: 88px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 0.28rem 0.5rem;
+  text-align: right;
   outline: none;
   transition: border-color 0.15s;
 }
 
-.settings-input:focus {
-  border-color: rgba(0, 148, 255, 0.5);
+.config-input:focus {
+  border-color: rgba(225, 6, 0, 0.45);
 }
 
-.settings-select {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #f2f2f2;
-  font-size: 0.88rem;
-  padding: 0.4rem 0.6rem;
+/* checkboxes */
+.config-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.1rem;
+}
+
+.config-checks label,
+.config-radios label {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  font-size: 0.83rem;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+
+/* radio group */
+.config-radios {
+  display: flex;
+  gap: 1.25rem;
+}
+
+/* select */
+.config-select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 0.28rem 0.5rem;
   outline: none;
   cursor: pointer;
 }
 
-.settings-checkboxes,
-.settings-radios {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
-}
-
-.settings-checkboxes label,
-.settings-radios label {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.75);
+/* ghost action button (hotkey rebind) */
+.ghost-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.26rem 0.65rem;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  outline: none;
 }
 
-.settings-restart-notice {
-  font-size: 0.76rem;
-  color: rgba(255, 190, 80, 0.7);
-  margin: 1rem 0 0.75rem;
+.ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
-#settings-save-btn {
+.ghost-btn.recording {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+#app-footer {
+  padding: 1rem 1.5rem 1.4rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.restart-notice {
+  font-size: 0.7rem;
+  color: rgba(255, 190, 80, 0.6);
+}
+
+#save-btn {
   width: 100%;
-  margin-top: 0;
+  padding: 0.68rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.15s, transform 0.1s;
 }
+
+#save-btn:hover { opacity: 0.85; }
+#save-btn:active { transform: scale(0.98); }
+#save-btn:disabled { opacity: 0.4; cursor: not-allowed; }

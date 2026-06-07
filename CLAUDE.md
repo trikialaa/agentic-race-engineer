@@ -75,7 +75,7 @@ F1 25 Game UDP (port 20777)
   → SessionStore + CarHistoryBuffers (src/live_data_engine/cache.py)
   → FastMCP tools (src/mcp/) — 4 tools: get_context_frame, get_leaderboard, get_lap_times, get_weather_forecast
   → RaceEngineerAgent (src/voice_pipeline/agent.py) — LLM with MCP tool bindings
-  → Flask REST API (src/session_manager/web_transcribe_server.py)
+  → Flask REST API (src/web/web_transcribe_server.py)
       POST /transcribe — audio → STT → agent reply
       GET /tts — text → audio stream
   → Electron UI (src/ui/electron/) with global hotkey capture
@@ -91,7 +91,7 @@ F1 25 Game UDP (port 20777)
 
 **`src/voice_pipeline/`** — `RaceEngineerAgent` (Microsoft Agent Framework) orchestrates STT → LLM → TTS. The `get_context_frame` MCP tool is automatically included in every LLM call to provide current telemetry. STT uses Deepgram Nova 3; TTS uses Inworld AI (48kHz mono PCM L16).
 
-**`src/session_manager/web_transcribe_server.py`** — Flask app that initializes the agent and exposes `/transcribe` and `/tts`. The async agent event loop runs in a background thread.
+**`src/web/web_transcribe_server.py`** — Flask app that initializes the agent and exposes `/transcribe` and `/tts`. The async agent event loop runs in a background thread.
 
 **`src/ui/electron/main.js`** — Electron shell loading `http://127.0.0.1:8080`. Global hotkeys are captured via `uiohook-napi`; steering wheel buttons come from a spawned `WheelHelper.exe` subprocess (C#/.NET 8, communicates via stdout).
 

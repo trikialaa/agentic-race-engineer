@@ -15,27 +15,45 @@ TOOL_FUNCTIONS = [
     "get_lap_times",
     "get_weather_forecast",
     "get_strategy",
+    "get_recent_events",
 ]
 
 TOOL_DESCRIPTIONS = {
     "get_context_frame": (
-        "Primary up-to-date race context for the current moment. "
-        "Use first for most driver questions."
+        "Primary snapshot of the current race moment: player position, gaps to cars ahead/behind, "
+        "tyre compound and age, fuel load, damage, DRS, current lap, session phase, and recent events. "
+        "Call this first for any question about the player's own car or immediate race situation. "
+        "Do NOT call get_leaderboard or get_lap_times just to answer a simple gap or tyre question — "
+        "get_context_frame already contains that data."
     ),
     "get_leaderboard": (
-        "Race order and competitive context by driver. Includes gaps, tyre age, pit stops, "
-        "penalties, and position change. Use to assess lost time, strategy differences, and traffic."
+        "Full field view: every car's race position, gap to leader, tyre compound and age, pit stop count, "
+        "and penalties. Use this when the driver asks about the wider field, cars outside their immediate "
+        "vicinity, or when comparing strategies across multiple drivers. "
+        "Prefer get_context_frame for questions about the two cars directly around the player."
     ),
     "get_lap_times": (
-        "Most recent and best lap/sector pace per driver. Use for pace comparison and where time is gained or lost."
+        "Lap-by-lap and sector-by-sector pace for all drivers. Use for questions about who is fastest, "
+        "where time is being lost or gained on track, or whether a specific driver is on a push lap. "
+        "Do not use this to answer gap or position questions — use get_context_frame or get_leaderboard instead."
     ),
     "get_weather_forecast": (
-        "Current weather plus detailed forecast samples by offset. Use for rain timing and track evolution expectations."
+        "Current track and air conditions plus a time-series forecast of weather changes. "
+        "Use for any question about rain timing, when to switch to wets/inters, or how the track "
+        "is expected to evolve. Not needed for dry-weather strategy calls."
     ),
     "get_strategy": (
-        "Pit stop strategy data. Includes pit window (ideal and latest lap, laps until window), "
-        "estimated rejoin position, current tyre compound and age, and all available tyre sets with wear and lap delta. "
-        "Use for any pit stop timing, undercut/overcut, or tyre choice questions."
+        "Pit stop strategy data: optimal pit window (ideal and latest lap, laps remaining until window), "
+        "estimated rejoin position, current tyre compound and age, and all available tyre sets with "
+        "remaining wear and pace delta. Use for pit timing, undercut/overcut analysis, and tyre choice. "
+        "get_context_frame has the current tyre compound and age; call this only when the driver "
+        "is asking about when to pit or which tyre to fit."
+    ),
+    "get_recent_events": (
+        "Chronological list of classified race events: safety car, red flag, collisions, penalties, "
+        "overtakes, DRS zones, fastest laps, retirements, and race winner. "
+        "Each entry includes severity (critical/relevant/informational) and whether it involves the player. "
+        "Use when the driver asks what happened, whether a penalty was issued, or to confirm an incident."
     ),
 }
 

@@ -1,112 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Nova 3 Transcribe</title>
+  <title>F1 Radio</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <main>
-    <button id="settings-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
-    <h1>Nova 3 Transcribe</h1>
-    <p>
-      Hold / press the <strong id="hotkey-label">R</strong> key or the button below to
-      record, release to transcribe.
-    </p>
-    <div class="controls">
-      <button id="record-btn" type="button">Hold key or click</button>
-      <button id="hotkey-btn" type="button">Set hotkey</button>
-    </div>
-    <p id="status">Waiting for input...</p>
-    <div id="latency" aria-live="polite">
-      <span class="latency-label">Latency</span>
-      <div class="latency-grid">
-        <div class="latency-row">
-          <span>STT</span>
-          <span id="latency-stt">--</span>
-        </div>
-        <div class="latency-row">
-          <span>LLM</span>
-          <span id="latency-llm">--</span>
-        </div>
-        <div class="latency-row">
-          <span>TTS</span>
-          <span id="latency-tts">--</span>
-        </div>
-      </div>
-    </div>
-    <section>
-      <h2>Transcripts</h2>
-      <ul id="transcript-list"></ul>
+  <div id="app">
+
+    <header id="app-header">
+      <span class="app-title">F1 RADIO</span>
+      <span id="session-dot" class="session-dot" title="Race session inactive"></span>
+    </header>
+
+    <section id="radio-section">
+      <button id="record-btn" type="button" disabled>
+        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/>
+          <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="8.5" y1="22" x2="15.5" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <p id="record-hint">HOLD <span id="hotkey-label">R</span> OR CLICK</p>
+      <p id="status">Waiting for race session…</p>
     </section>
-  </main>
-  <div id="settings-panel" aria-hidden="true">
-    <div class="settings-header">
-      <button id="settings-back" type="button">←</button>
-      <span class="settings-title">Settings</span>
-    </div>
 
-    <div class="settings-section">
-      <span class="settings-label">Hotkey</span>
-      <div class="settings-row">
-        <span id="settings-hotkey-display" class="settings-value">R</span>
-        <button id="settings-rebind-btn" type="button" class="settings-action-btn">Rebind</button>
+    <div class="divider"></div>
+
+    <section id="config-section">
+
+      <div class="config-row">
+        <span class="config-label">HOTKEY</span>
+        <div class="config-control">
+          <button id="hotkey-btn" type="button" class="ghost-btn">Rebind</button>
+        </div>
       </div>
-    </div>
 
-    <div class="settings-section">
-      <label class="settings-label" for="settings-udp-port">UDP Port</label>
-      <input id="settings-udp-port" class="settings-input" type="number" min="1024" max="65535">
-    </div>
-
-    <div class="settings-section">
-      <label class="settings-label" for="settings-server-port">Server Port</label>
-      <input id="settings-server-port" class="settings-input" type="number" min="1024" max="65535">
-    </div>
-
-    <div class="settings-section">
-      <span class="settings-label">Active Session Types</span>
-      <div id="settings-session-types" class="settings-checkboxes">
-        <label><input type="checkbox" value="Race"> Race</label>
-        <label><input type="checkbox" value="Race 2"> Race 2</label>
-        <label><input type="checkbox" value="Race 3"> Race 3</label>
-        <label><input type="checkbox" value="Sprint"> Sprint</label>
-        <label><input type="checkbox" value="Qualifying"> Qualifying</label>
-        <label><input type="checkbox" value="Practice 1"> Practice 1</label>
+      <div class="config-row">
+        <label class="config-label" for="cfg-udp-port">UDP PORT</label>
+        <input id="cfg-udp-port" class="config-input" type="number" min="1024" max="65535" placeholder="20777">
       </div>
-    </div>
 
-    <div class="settings-section">
-      <label class="settings-label" for="settings-tts-voice">TTS Voice</label>
-      <input id="settings-tts-voice" class="settings-input" type="text" placeholder="Voice ID (e.g. Alex)">
-    </div>
-
-    <div class="settings-section">
-      <span class="settings-label">Overlay Side</span>
-      <div class="settings-radios">
-        <label><input type="radio" name="overlay-side" value="right"> Right</label>
-        <label><input type="radio" name="overlay-side" value="left"> Left</label>
+      <div class="config-row">
+        <label class="config-label" for="cfg-server-port">SERVER PORT</label>
+        <input id="cfg-server-port" class="config-input" type="number" min="1024" max="65535" placeholder="8080">
       </div>
-    </div>
 
-    <div class="settings-section">
-      <label class="settings-label" for="settings-dismiss-speed">Overlay Dismiss Speed</label>
-      <select id="settings-dismiss-speed" class="settings-select">
-        <option value="slow">Slow</option>
-        <option value="normal">Normal</option>
-        <option value="fast">Fast</option>
-      </select>
-    </div>
+      <div class="config-row config-row--stacked">
+        <span class="config-label">ACTIVE SESSIONS</span>
+        <div id="cfg-session-types" class="config-checks">
+          <label><input type="checkbox" value="Race"> Grand Prix</label>
+          <label><input type="checkbox" value="Race 2"> Sprint</label>
+          <label><input type="checkbox" value="Feature Race"> Feature Race</label>
+          <label><input type="checkbox" value="Qualifying"> Qualifying</label>
+          <label><input type="checkbox" value="Sprint Shootout"> Sprint Shootout</label>
+          <label><input type="checkbox" value="Practice 1"> Practice</label>
+        </div>
+      </div>
 
-    <p class="settings-restart-notice">⚠ UDP port, server port, and TTS voice require a restart to take effect.</p>
+      <div class="config-row">
+        <span class="config-label">OVERLAY SIDE</span>
+        <div class="config-radios">
+          <label><input type="radio" name="overlay-side" value="right"> Right</label>
+          <label><input type="radio" name="overlay-side" value="left"> Left</label>
+        </div>
+      </div>
 
-    <button id="settings-save-btn" type="button">Save</button>
+      <div class="config-row">
+        <label class="config-label" for="cfg-dismiss-speed">DISMISS SPEED</label>
+        <select id="cfg-dismiss-speed" class="config-select">
+          <option value="slow">Slow</option>
+          <option value="normal">Normal</option>
+          <option value="fast">Fast</option>
+        </select>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="cfg-callouts">ENGINEER CALLOUTS</label>
+        <select id="cfg-callouts" class="config-select">
+          <option value="off">Off</option>
+          <option value="critical">Critical only</option>
+          <option value="critical_relevant">Critical + Relevant</option>
+        </select>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="cfg-mic-enhancement">MIC ENHANCEMENT</label>
+        <select id="cfg-mic-enhancement" class="config-select">
+          <option value="off">Off</option>
+          <option value="standard">Noise Reduction</option>
+          <option value="ai">AI Noise Cancellation</option>
+        </select>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="cfg-mic-device">INPUT DEVICE</label>
+        <select id="cfg-mic-device" class="config-select" style="max-width:160px"></select>
+      </div>
+
+      <div class="config-row">
+        <span class="config-label">MIC TEST</span>
+        <button id="mic-test-btn" type="button" class="ghost-btn" disabled>Hold to Test</button>
+      </div>
+
+    </section>
+
+    <footer id="app-footer">
+      <p class="restart-notice">⚠ UDP port and server port require a restart</p>
+      <button id="save-btn" type="button">Save Settings</button>
+    </footer>
+
   </div>
-
   <script src="app.js" type="module"></script>
 </body>
-
 </html>

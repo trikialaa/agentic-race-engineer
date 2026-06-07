@@ -27,7 +27,7 @@ SESSION_TYPES = {
     14: "One-Shot Sprint Shootout",
     15: "Race",
     16: "Race 2",
-    17: "Race 3",
+    17: "Feature Race",
     18: "Time Trial"
 }
 

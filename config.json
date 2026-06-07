@@ -1,20 +1,21 @@
 {
   "hotkey": {
-    "type": "wheel-button",
-    "button": 24,
-    "display": "Wheel Button 24"
+    "type": "mouse",
+    "button": 4,
+    "display": "Mouse 4"
   },
   "udpPort": 20777,
   "serverPort": 8080,
   "sessionTypes": [
     "Race",
     "Race 2",
-    "Race 3",
-    "Sprint",
+    "Feature Race",
     "Qualifying",
+    "Sprint Shootout",
     "Practice 1"
   ],
   "ttsVoice": "Alex",
-  "overlayPosition": "right",
-  "overlayDismissSpeed": "normal"
+  "overlayPosition": "left",
+  "overlayDismissSpeed": "normal",
+  "proactiveEvents": "critical_relevant"
 }

@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from io import BytesIO
-from src import config as _app_config
 import audioop
 import base64
 import json
@@ -36,7 +35,7 @@ class TTS():
             raise RuntimeError("INWORLD_API_KEY is not set")
         if not INWORLD_BASE_URL:
             raise RuntimeError("INWORLD_BASE_URL is not set")
-        self.voice_id: str = _app_config.get("ttsVoice", "Alex")
+        self.voice_id: str = "Edward"
 
     def read_text(self, text):
         pcm_bytes = bytearray()

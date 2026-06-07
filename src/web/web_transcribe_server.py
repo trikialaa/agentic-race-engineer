@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import os
+import queue
 import threading
 import time
 from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
@@ -22,6 +24,10 @@ logging.basicConfig(level=logging.WARN)
 stt = STT()
 tts_client = TTS()
 race_engineer_agent = RaceEngineerAgent()
+
+# Thread-safe queue: CalloutMonitor pushes callout messages, SSE endpoint drains them.
+callout_queue: queue.Queue = queue.Queue(maxsize=8)
+race_engineer_agent.set_callout_queue(callout_queue)
 
 agent_loop = asyncio.new_event_loop()
 
@@ -122,8 +128,8 @@ def agent():
         llm_latency_ms = round((time.perf_counter() - llm_start) * 1000, 1)
     payload: dict = {"latency_ms": {"llm": llm_latency_ms}}
     if agent_reply_raw:
-        payload["display_reply"] = agent_reply_raw   # numeric notation, for overlay
-        payload["agent_reply"] = sanitize_for_tts(agent_reply_raw)  # spoken form, for TTS
+        payload["display_reply"] = agent_reply_raw
+        payload["agent_reply"] = sanitize_for_tts(agent_reply_raw)
     return jsonify(payload)
 
 
@@ -140,6 +146,29 @@ def tts():
     )
 
 
+@app.route("/callout-stream", methods=["GET"])
+def callout_stream():
+    def generate():
+        while True:
+            try:
+                msg = callout_queue.get(timeout=25)
+                yield f"data: {json.dumps(msg)}\n\n"
+            except queue.Empty:
+                yield ": heartbeat\n\n"
+            except GeneratorExit:
+                break
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @app.route("/<path:path>")
 def static_proxy(path):
     return send_from_directory(static_folder, path)
@@ -148,4 +177,4 @@ def static_proxy(path):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
     ensure_agent_ready()
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, threaded=True)

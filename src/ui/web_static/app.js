@@ -1,163 +1,95 @@
 const TEAM_COLORS = {
-  "Red Bull":       "#3671C6",
-  "Ferrari":        "#E8002D",
-  "Mercedes":       "#27F4D2",
-  "McLaren":        "#FF8000",
-  "Aston Martin":   "#229971",
-  "Alpine":         "#FF87BC",
-  "Williams":       "#64C4FF",
-  "Racing Bulls":   "#6692FF",
-  "Haas":           "#B6BABD",
-  "Audi":           "#C9D246",
-  "Cadillac":       "#CC0000",
+  "Red Bull":     "#3671C6",
+  "Ferrari":      "#E8002D",
+  "Mercedes":     "#27F4D2",
+  "McLaren":      "#FF8000",
+  "Aston Martin": "#229971",
+  "Alpine":       "#FF87BC",
+  "Williams":     "#64C4FF",
+  "Racing Bulls": "#6692FF",
+  "Haas":         "#B6BABD",
+  "Audi":         "#C9D246",
+  "Cadillac":     "#CC0000",
 };
 
 const teamColor = (teamName) => TEAM_COLORS[teamName] ?? "#E10600";
 
-const statusEl = document.getElementById("status");
-const recordBtn = document.getElementById("record-btn");
-const transcriptList = document.getElementById("transcript-list");
+// ── Element refs ──────────────────────────────────────────────
+const statusEl   = document.getElementById("status");
+const recordBtn  = document.getElementById("record-btn");
 const hotkeyLabel = document.getElementById("hotkey-label");
-const hotkeyBtn = document.getElementById("hotkey-btn");
-const settingsBtn = document.getElementById("settings-btn");
-const settingsPanel = document.getElementById("settings-panel");
-const settingsBack = document.getElementById("settings-back");
-const settingsSave = document.getElementById("settings-save-btn");
-const settingsHotkeyDisplay = document.getElementById("settings-hotkey-display");
-const settingsRebind = document.getElementById("settings-rebind-btn");
-const settingsUdpPort = document.getElementById("settings-udp-port");
-const settingsServerPort = document.getElementById("settings-server-port");
-const settingsSessionTypes = document.getElementById("settings-session-types");
-const settingsTtsVoice = document.getElementById("settings-tts-voice");
-const settingsDismissSpeed = document.getElementById("settings-dismiss-speed");
+const hotkeyBtn  = document.getElementById("hotkey-btn");
+const sessionDot = document.getElementById("session-dot");
+const saveBtn    = document.getElementById("save-btn");
 
-const latencyElements = {
-  stt: document.getElementById("latency-stt"),
-  llm: document.getElementById("latency-llm"),
-  tts: document.getElementById("latency-tts"),
+// ── Status ────────────────────────────────────────────────────
+const setStatus = (text, highlight = false) => {
+  statusEl.textContent = text;
+  statusEl.classList.toggle("highlight", highlight);
 };
 
-const formatLatencyValue = (value) =>
-  typeof value === "number" ? `${value.toFixed(0)} ms` : "--";
+// ── Hotkey ────────────────────────────────────────────────────
+const HOTKEY_STORAGE_KEY  = "f1radio-hotkey";
+const DEFAULT_HOTKEY      = "R";
+const isElectron          = Boolean(window.electronAPI?.captureGlobalHotkey);
 
-const updateLatencyValue = (metric, value) => {
-  const el = latencyElements[metric];
-  if (!el) {
-    return;
-  }
-  el.textContent = formatLatencyValue(value);
-};
-
-const resetLatencies = () => {
-  Object.keys(latencyElements).forEach((metric) =>
-    updateLatencyValue(metric, null)
-  );
-};
-
-resetLatencies();
-
-let mediaRecorder;
-let audioStream;
-let chunks = [];
-let keyHeld = false;
-let isCapturingHotkey = false;
-const HOTKEY_STORAGE_KEY = "nova-tts-hotkey";
-const DEFAULT_FALLBACK_HOTKEY = "R";
-const isElectron = Boolean(window.electronAPI?.captureGlobalHotkey);
-let configuredHotkey = DEFAULT_FALLBACK_HOTKEY.toLowerCase();
-let currentHotkeyDisplay = DEFAULT_FALLBACK_HOTKEY;
+let configuredHotkey   = DEFAULT_HOTKEY.toLowerCase();
+let currentHotkeyDisplay = DEFAULT_HOTKEY;
+let keyHeld            = false;
+let isCapturingHotkey  = false;
 
 const updateHotkeyDisplay = (display) => {
-  if (!display) {
-    return;
-  }
+  if (!display) return;
   currentHotkeyDisplay = display;
-  if (hotkeyLabel) {
-    hotkeyLabel.textContent = display;
-  }
-  if (recordBtn) {
-    recordBtn.textContent = `Hold ${display} or click`;
-  }
-  if (settingsHotkeyDisplay) {
-    settingsHotkeyDisplay.textContent = display;
-  }
+  if (hotkeyLabel) hotkeyLabel.textContent = display;
 };
 
 const persistFallbackHotkey = (key) => {
-  try {
-    localStorage?.setItem(HOTKEY_STORAGE_KEY, key);
-  } catch {
-    // swallow storage errors (private mode, etc.)
-  }
+  try { localStorage?.setItem(HOTKEY_STORAGE_KEY, key); } catch {}
 };
 
 const setFallbackHotkey = (key) => {
-  const normalized = (key || DEFAULT_FALLBACK_HOTKEY).toLowerCase();
-  configuredHotkey = normalized;
-  const display = (key || DEFAULT_FALLBACK_HOTKEY).toUpperCase();
-  updateHotkeyDisplay(display);
-  persistFallbackHotkey(normalized);
+  configuredHotkey = (key || DEFAULT_HOTKEY).toLowerCase();
+  updateHotkeyDisplay((key || DEFAULT_HOTKEY).toUpperCase());
+  persistFallbackHotkey(configuredHotkey);
 };
 
 const isConfiguredHotkey = (key) =>
-  !isElectron &&
-  typeof key === "string" &&
-  key.toLowerCase() === configuredHotkey;
+  !isElectron && typeof key === "string" && key.toLowerCase() === configuredHotkey;
 
 const captureFallbackKey = () =>
   new Promise((resolve) => {
     const cleanup = () => {
-      window.removeEventListener("keydown", handleKey, true);
-      window.removeEventListener("mousedown", handleMouse, true);
+      window.removeEventListener("keydown", onKey,   true);
+      window.removeEventListener("mousedown", onMouse, true);
     };
-
-    const handleKey = (event) => {
-      event.preventDefault();
-      cleanup();
-      resolve(event.key || event.code || DEFAULT_FALLBACK_HOTKEY);
-    };
-
-    const handleMouse = (event) => {
-      event.preventDefault();
-      cleanup();
-      resolve(`Mouse ${event.button}`);
-    };
-
-    window.addEventListener("keydown", handleKey, {
-      capture: true,
-      once: true,
-    });
-    window.addEventListener("mousedown", handleMouse, {
-      capture: true,
-      once: true,
-    });
+    const onKey = (e) => { e.preventDefault(); cleanup(); resolve(e.key || e.code || DEFAULT_HOTKEY); };
+    const onMouse = (e) => { e.preventDefault(); cleanup(); resolve(`Mouse ${e.button}`); };
+    window.addEventListener("keydown",   onKey,   { capture: true, once: true });
+    window.addEventListener("mousedown", onMouse, { capture: true, once: true });
   });
 
 const startHotkeyCapture = async () => {
-  if (isCapturingHotkey) {
-    return;
-  }
+  if (isCapturingHotkey) return;
   isCapturingHotkey = true;
-  setStatus("Press the key or mouse button you want to bind", true);
-
+  setStatus("Press any key or button to bind…", true);
   try {
     if (isElectron && window.electronAPI?.captureGlobalHotkey) {
       const result = await window.electronAPI.captureGlobalHotkey();
       if (result?.success && result.config) {
-        const display = result.config.display || DEFAULT_FALLBACK_HOTKEY;
-        updateHotkeyDisplay(display);
-        setStatus(`Bound to ${display}`);
+        updateHotkeyDisplay(result.config.display || DEFAULT_HOTKEY);
+        setStatus(sessionActive ? "Ready" : "Waiting for race session…");
       } else {
-        setStatus("Unable to bind hotkey.", true);
+        setStatus("Could not bind hotkey.");
       }
     } else {
       const key = await captureFallbackKey();
       setFallbackHotkey(key);
-      setStatus(`Bound to ${currentHotkeyDisplay}`);
+      setStatus(sessionActive ? "Ready" : "Waiting for race session…");
     }
-  } catch (error) {
-    console.error("Hotkey capture failed", error);
-    setStatus("Hotkey capture failed.", true);
+  } catch (err) {
+    console.error("Hotkey capture failed", err);
+    setStatus("Hotkey capture failed.");
   } finally {
     isCapturingHotkey = false;
   }
@@ -165,58 +97,48 @@ const startHotkeyCapture = async () => {
 
 const initHotkey = async () => {
   if (isElectron && window.electronAPI?.getGlobalHotkey) {
-    const electronConfig = await window.electronAPI.getGlobalHotkey();
-    if (electronConfig?.display) {
-      updateHotkeyDisplay(electronConfig.display);
-      return;
-    }
+    const cfg = await window.electronAPI.getGlobalHotkey();
+    if (cfg?.display) { updateHotkeyDisplay(cfg.display); return; }
   }
-
   const stored = localStorage?.getItem(HOTKEY_STORAGE_KEY);
-  setFallbackHotkey(stored || DEFAULT_FALLBACK_HOTKEY);
+  setFallbackHotkey(stored || DEFAULT_HOTKEY);
 };
 
+// ── Audio context ─────────────────────────────────────────────
 const SAMPLE_RATE = 48000;
 let audioContext;
 let nextPlaybackTime = 0;
+let _audioAbort = null;
+const _activeSources = new Set();
 
 const getAudioContext = () => {
-  if (audioContext) {
-    return audioContext;
-  }
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioContextClass({ sampleRate: SAMPLE_RATE });
+  if (audioContext) return audioContext;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  audioContext = new Ctx({ sampleRate: SAMPLE_RATE });
   return audioContext;
 };
 
 const ensureAudioContextActive = async () => {
   const ctx = getAudioContext();
-  if (ctx.state === "suspended") {
-    await ctx.resume();
-  }
+  if (ctx.state === "suspended") await ctx.resume();
   return ctx;
 };
 
-const setStatus = (text, highlight = false) => {
-  statusEl.textContent = text;
-  statusEl.dataset.state = highlight ? "highlight" : "";
-};
-
-const addMessage = (text, role) => {
-  const li = document.createElement("li");
-  li.className = `message ${role}`;
-  li.textContent = text;
-  transcriptList.prepend(li);
+const stopAudio = () => {
+  if (_audioAbort) { _audioAbort.abort(); _audioAbort = null; }
+  for (const src of _activeSources) {
+    try { src.stop(); } catch {}
+  }
+  _activeSources.clear();
+  nextPlaybackTime = 0;
 };
 
 const convertPcmToFloat32 = (chunk) => {
   const length = chunk.byteLength & ~1;
-  if (length === 0) {
-    return null;
-  }
+  if (length === 0) return null;
   const samples = new Int16Array(chunk.buffer, chunk.byteOffset, length / 2);
   const float32 = new Float32Array(samples.length);
-  for (let i = 0; i < samples.length; i += 1) {
+  for (let i = 0; i < samples.length; i++) {
     float32[i] = Math.max(-1, Math.min(1, samples[i] / 0x8000));
   }
   return float32;
@@ -224,123 +146,116 @@ const convertPcmToFloat32 = (chunk) => {
 
 const scheduleChunkPlayback = (float32) => {
   const ctx = getAudioContext();
-  const buffer = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
-  buffer.copyToChannel(float32, 0, 0);
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(ctx.destination);
+  const buf = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
+  buf.copyToChannel(float32, 0, 0);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
   const startTime = Math.max(ctx.currentTime, nextPlaybackTime);
-  source.start(startTime);
-  nextPlaybackTime = startTime + buffer.duration;
+  src.start(startTime);
+  nextPlaybackTime = startTime + buf.duration;
+  _activeSources.add(src);
+  src.onended = () => _activeSources.delete(src);
 };
 
 const streamAgentAudio = async (text) => {
+  stopAudio();
   await ensureAudioContextActive();
   nextPlaybackTime = Math.max(nextPlaybackTime, audioContext.currentTime);
 
-  const resp = await fetch(`/tts?text=${encodeURIComponent(text)}`);
-  if (!resp.ok) {
-    throw new Error("Unable to stream TTS");
-  }
+  const controller = new AbortController();
+  _audioAbort = controller;
 
+  let resp;
+  try {
+    resp = await fetch(`/tts?text=${encodeURIComponent(text)}`, { signal: controller.signal });
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    throw err;
+  }
+  if (!resp.ok) throw new Error("TTS stream failed");
   const reader = resp.body?.getReader();
-  if (!reader) {
-    throw new Error("Readable stream not supported");
-  }
+  if (!reader) throw new Error("Readable stream not supported");
 
-  let pendingAudio = new Uint8Array(0);
-  const MIN_BUFFER_BYTES = 4096;
+  let pending = new Uint8Array(0);
+  const MIN_BYTES = 4096;
 
-  const drainPending = (force = false) => {
-    while (
-      pendingAudio.length >= MIN_BUFFER_BYTES ||
-      (force && pendingAudio.length >= 2)
-    ) {
-      const usableLen = pendingAudio.length & ~1;
-      if (usableLen === 0) {
-        break;
-      }
-      const chunk = pendingAudio.slice(0, usableLen);
-      pendingAudio = pendingAudio.slice(usableLen);
-      const float32 = convertPcmToFloat32(chunk);
-      if (float32) {
-        scheduleChunkPlayback(float32);
-      }
+  const drain = (force = false) => {
+    while (pending.length >= MIN_BYTES || (force && pending.length >= 2)) {
+      const usable = pending.length & ~1;
+      if (usable === 0) break;
+      const chunk = pending.slice(0, usable);
+      pending = pending.slice(usable);
+      const f32 = convertPcmToFloat32(chunk);
+      if (f32) scheduleChunkPlayback(f32);
     }
   };
 
-  const appendPending = (chunk) => {
-    const combined = new Uint8Array(pendingAudio.length + chunk.length);
-    combined.set(pendingAudio);
-    combined.set(chunk, pendingAudio.length);
-    pendingAudio = combined;
+  const append = (chunk) => {
+    const merged = new Uint8Array(pending.length + chunk.length);
+    merged.set(pending);
+    merged.set(chunk, pending.length);
+    pending = merged;
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (true) {
+      if (controller.signal.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) { append(value); drain(); }
     }
-    if (value) {
-      appendPending(value);
-      drainPending();
-    }
+    if (!controller.signal.aborted) drain(true);
+  } finally {
+    if (_audioAbort === controller) _audioAbort = null;
+    try { reader.cancel(); } catch {}
   }
-
-  drainPending(true);
 };
 
 const playAgentAudio = async (text) => {
-  if (!text) {
-    return;
-  }
-  try {
-    const ttsStart = performance.now();
-    await streamAgentAudio(text);
-    const ttsLatency = performance.now() - ttsStart;
-    updateLatencyValue("tts", ttsLatency);
-  } catch (error) {
-    console.error("TTS error", error);
-    updateLatencyValue("tts", null);
-  }
+  if (!text) return;
+  try { await streamAgentAudio(text); } catch (err) { console.error("TTS error", err); }
 };
 
+// ── Recording ─────────────────────────────────────────────────
+const MIC_DEVICE_KEY       = "f1radio-mic-device";
+const MIC_ENHANCEMENT_KEY  = "f1radio-mic-enhancement";
+let mediaRecorder;
+let audioStream;
+let chunks = [];
+let micTestBtn = document.getElementById("mic-test-btn");
+let testRecorder = null;
+let testChunks = [];
+let rnnoiseWorkletLoaded = false;
+let rnnoiseNode = null;
+let recordingStream = null;
+
 const sendRecording = async () => {
-  if (chunks.length === 0) {
-    setStatus("No audio captured.");
-    return;
-  }
-  resetLatencies();
+  if (chunks.length === 0) { setStatus("No audio captured."); return; }
+
   const blob = new Blob(chunks, { type: "audio/webm" });
   chunks = [];
-
   const form = new FormData();
   form.append("audio_data", blob, "recording.webm");
 
   try {
-    // Phase 1: STT — show driver text as soon as it arrives
-    setStatus("Transcribing...", true);
+    setStatus("Transcribing…", true);
     const sttResp = await fetch("/transcribe", { method: "POST", body: form });
     if (sttResp.status === 403) { setStatus("No active race session."); return; }
     if (!sttResp.ok) throw new Error("Server rejected audio");
     const sttPayload = await sttResp.json();
-    updateLatencyValue("stt", sttPayload.latency_ms?.stt);
 
     const transcript = sttPayload.transcript;
-    if (!transcript) {
-      setStatus("No speech detected.");
-      return;
-    }
-    addMessage(transcript, "user");
+    if (!transcript) { setStatus("No speech detected."); return; }
+
     const player = sttPayload.player ?? {};
     window.electronAPI?.showOverlayDriver({
       driver: player.name || "DRIVER",
       driverText: transcript,
       teamColor: teamColor(player.team),
     });
-    setStatus("Thinking...", true);
+    setStatus("Thinking…", true);
 
-    // Phase 2: LLM — update overlay with engineer reply
     const agentResp = await fetch("/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -348,221 +263,326 @@ const sendRecording = async () => {
     });
     if (!agentResp.ok) throw new Error("Agent request failed");
     const agentPayload = await agentResp.json();
-    updateLatencyValue("llm", agentPayload.latency_ms?.llm);
 
     if (agentPayload.agent_reply) {
-      addMessage(agentPayload.agent_reply, "agent");
-      window.electronAPI?.updateOverlayEngineer({ engineerText: agentPayload.display_reply || agentPayload.agent_reply });
+      window.electronAPI?.updateOverlayEngineer({
+        engineerText: agentPayload.display_reply || agentPayload.agent_reply,
+      });
       playAgentAudio(agentPayload.agent_reply);
     }
-    setStatus("Transcript received.");
-  } catch (error) {
-    console.error(error);
-    setStatus("Transcription failed.");
+    setStatus("Ready");
+  } catch (err) {
+    console.error(err);
+    setStatus("Error — try again.");
   }
 };
 
-
 const startRecording = () => {
-  if (!mediaRecorder || mediaRecorder.state === "recording") {
-    return;
-  }
+  if (!mediaRecorder || mediaRecorder.state === "recording") return;
   chunks = [];
   mediaRecorder.start();
   recordBtn.classList.add("recording");
-  recordBtn.textContent = "Recording…";
   setStatus("Recording…", true);
 };
 
 const stopRecording = () => {
-  if (!mediaRecorder || mediaRecorder.state !== "recording") {
-    return;
-  }
+  if (!mediaRecorder || mediaRecorder.state !== "recording") return;
   mediaRecorder.stop();
   recordBtn.classList.remove("recording");
-  recordBtn.textContent = `Hold ${currentHotkeyDisplay} or click`;
 };
 
-const initRecorder = async () => {
+const populateMicDevices = async () => {
+  const sel = document.getElementById("cfg-mic-device");
+  if (!sel) return;
   try {
-    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(audioStream, {
-      mimeType: "audio/webm;codecs=opus",
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter((d) => d.kind === "audioinput");
+    const savedId = localStorage.getItem(MIC_DEVICE_KEY) || "";
+    sel.innerHTML = "";
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default";
+    sel.appendChild(defaultOpt);
+    inputs.forEach((d, i) => {
+      const opt = document.createElement("option");
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Microphone ${i + 1}`;
+      if (d.deviceId === savedId) opt.selected = true;
+      sel.appendChild(opt);
     });
-    mediaRecorder.addEventListener("dataavailable", (event) => {
-      if (event.data && event.data.size > 0) {
-        chunks.push(event.data);
+  } catch {}
+};
+
+const setupRNNoise = async (ctx, source) => {
+  if (!rnnoiseWorkletLoaded) {
+    await ctx.audioWorklet.addModule("/rnnoise-processor.js");
+    rnnoiseWorkletLoaded = true;
+  }
+  const node = new AudioWorkletNode(ctx, "rnnoise-processor");
+  await new Promise((resolve, reject) => {
+    node.port.onmessage = ({ data }) => {
+      if (data.type === "ready") resolve();
+      if (data.type === "error") reject(new Error(data.message));
+    };
+    node.port.postMessage({ type: "init" });
+  });
+  source.connect(node);
+  return node;
+};
+
+const initRecorder = async (deviceId = "", enhancement = "off") => {
+  // Tear down previous RNNoise node and stream
+  if (rnnoiseNode) { rnnoiseNode.disconnect(); rnnoiseNode = null; }
+  if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+
+  const isStandard = enhancement === "standard";
+  const isAI       = enhancement === "ai";
+
+  const audioConstraints = {
+    ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+    echoCancellation: isStandard || isAI,
+    noiseSuppression: isStandard || isAI,
+    autoGainControl:  isStandard || isAI,
+  };
+
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+
+    recordingStream = audioStream;
+
+    if (isAI) {
+      try {
+        const ctx = getAudioContext();
+        if (ctx.state === "suspended") await ctx.resume();
+        const source = ctx.createMediaStreamSource(audioStream);
+        rnnoiseNode = await setupRNNoise(ctx, source);
+        const dest = ctx.createMediaStreamDestination();
+        rnnoiseNode.connect(dest);
+        recordingStream = dest.stream;
+      } catch (err) {
+        console.warn("RNNoise failed, falling back to raw audio:", err);
+        rnnoiseNode = null;
       }
+    }
+
+    mediaRecorder = new MediaRecorder(recordingStream, {
+      mimeType: "audio/webm;codecs=opus",
+      audioBitsPerSecond: 32000,
+    });
+    mediaRecorder.addEventListener("dataavailable", (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
     });
     mediaRecorder.addEventListener("stop", sendRecording);
-  } catch (error) {
-    console.error(error);
+    if (micTestBtn) micTestBtn.disabled = false;
+    await populateMicDevices();
+  } catch (err) {
+    console.error(err);
     setStatus("Microphone access denied.");
     recordBtn.disabled = true;
   }
 };
 
-// ── Session state polling ──────────────────────────────────────
+// ── Mic test ──────────────────────────────────────────────────
+const startMicTest = () => {
+  if (!recordingStream || mediaRecorder?.state === "recording") return;
+  testChunks = [];
+  testRecorder = new MediaRecorder(recordingStream, { mimeType: "audio/webm;codecs=opus" });
+  testRecorder.addEventListener("dataavailable", (e) => {
+    if (e.data && e.data.size > 0) testChunks.push(e.data);
+  });
+  testRecorder.addEventListener("stop", () => {
+    const blob = new Blob(testChunks, { type: "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    audio.play();
+    micTestBtn.textContent = "Hold to Test";
+    micTestBtn.classList.remove("recording");
+  });
+  testRecorder.start();
+  micTestBtn.textContent = "Recording…";
+  micTestBtn.classList.add("recording");
+};
+
+const stopMicTest = () => {
+  if (testRecorder?.state === "recording") testRecorder.stop();
+};
+
+// ── Session polling ───────────────────────────────────────────
 let sessionActive = false;
 
 const applySessionState = (active) => {
   if (active === sessionActive) return;
   sessionActive = active;
+  sessionDot?.classList.toggle("active", active);
+  if (sessionDot) sessionDot.title = active ? "Race session active" : "Race session inactive";
   if (active) {
     recordBtn.disabled = false;
-    setStatus(`Ready. Hold ${currentHotkeyDisplay} or click the button.`);
+    setStatus("Ready");
   } else {
     recordBtn.disabled = true;
     if (mediaRecorder?.state === "recording") stopRecording();
-    setStatus("Waiting for race session...");
+    setStatus("Waiting for race session…");
   }
 };
 
 const pollSession = async () => {
   try {
     const resp = await fetch("/session-state");
-    if (resp.ok) {
-      const { active } = await resp.json();
-      applySessionState(Boolean(active));
-    }
-  } catch { /* server starting up */ }
+    if (resp.ok) applySessionState(Boolean((await resp.json()).active));
+  } catch {}
 };
 
-// Disable button immediately until first poll confirms an active session
 recordBtn.disabled = true;
-setStatus("Waiting for race session...");
+setStatus("Waiting for race session…");
 pollSession();
 setInterval(pollSession, 3000);
 
-recordBtn.addEventListener("mousedown", () => {
-  startRecording();
-});
+// ── PTT events ────────────────────────────────────────────────
+recordBtn.addEventListener("mousedown", startRecording);
+recordBtn.addEventListener("mouseup", stopRecording);
+["mouseleave", "touchend", "touchcancel"].forEach((ev) =>
+  recordBtn.addEventListener(ev, stopRecording)
+);
 
-recordBtn.addEventListener("mouseup", () => {
-  stopRecording();
-});
-
-["mouseleave", "touchend", "touchcancel"].forEach((event) => {
-  recordBtn.addEventListener(event, () => {
-    stopRecording();
-  });
-});
-
+// ── Electron global hotkey ────────────────────────────────────
 const bindElectronHotkey = () => {
-  if (!isElectron || !window.electronAPI?.onGlobalHotkey) {
-    return;
-  }
+  if (!isElectron || !window.electronAPI?.onGlobalHotkey) return;
 
-  window.electronAPI.onHotkeyUpdated((config) => {
-    if (config?.display) {
-      updateHotkeyDisplay(config.display);
-    }
+  window.electronAPI.onHotkeyUpdated((cfg) => {
+    if (cfg?.display) updateHotkeyDisplay(cfg.display);
   });
 
   window.electronAPI.onGlobalHotkey((action) => {
     if (action === "down") {
       keyHeld = true;
-      if (mediaRecorder?.state !== "recording") {
-        startRecording();
-      }
+      if (mediaRecorder?.state !== "recording") startRecording();
     } else if (action === "up") {
       keyHeld = false;
-      if (mediaRecorder?.state === "recording") {
-        stopRecording();
-      }
+      if (mediaRecorder?.state === "recording") stopRecording();
     }
   });
 };
 
 if (!isElectron) {
-  window.addEventListener("keydown", (event) => {
-    if (isConfiguredHotkey(event.key) && !keyHeld) {
-      keyHeld = true;
-      startRecording();
-      event.preventDefault();
-    }
+  window.addEventListener("keydown", (e) => {
+    if (isConfiguredHotkey(e.key) && !keyHeld) { keyHeld = true; startRecording(); e.preventDefault(); }
   });
-
-  window.addEventListener("keyup", (event) => {
-    if (isConfiguredHotkey(event.key) && keyHeld) {
-      keyHeld = false;
-      stopRecording();
-    }
+  window.addEventListener("keyup", (e) => {
+    if (isConfiguredHotkey(e.key) && keyHeld) { keyHeld = false; stopRecording(); }
   });
-
   window.addEventListener("blur", () => {
-    if (keyHeld) {
-      keyHeld = false;
-      stopRecording();
-    }
+    if (keyHeld) { keyHeld = false; stopRecording(); }
   });
 }
 
-// ── Settings panel ────────────────────────────────────────────
-// Only available in Electron; hide the gear button in plain browser mode.
-if (!isElectron && settingsBtn) {
-  settingsBtn.style.display = "none";
-}
-
-const openSettings = async () => {
+// ── Config / settings ─────────────────────────────────────────
+const loadConfigIntoUI = async () => {
+  if (!isElectron) return;
   const cfg = await window.electronAPI.getConfig();
 
-  settingsHotkeyDisplay.textContent = currentHotkeyDisplay;
-  settingsUdpPort.value = cfg.udpPort ?? 20777;
-  settingsServerPort.value = cfg.serverPort ?? 8080;
+  const udpIn    = document.getElementById("cfg-udp-port");
+  const serverIn = document.getElementById("cfg-server-port");
+  if (udpIn    && typeof cfg.udpPort    === "number") udpIn.value    = cfg.udpPort;
+  if (serverIn && typeof cfg.serverPort === "number") serverIn.value = cfg.serverPort;
 
-  const activeTypes = Array.isArray(cfg.sessionTypes) ? cfg.sessionTypes : [];
-  settingsSessionTypes.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-    cb.checked = activeTypes.includes(cb.value);
+  const active = Array.isArray(cfg.sessionTypes) ? cfg.sessionTypes : [];
+  document.querySelectorAll("#cfg-session-types input[type=checkbox]").forEach((cb) => {
+    cb.checked = active.includes(cb.value);
   });
 
-  settingsTtsVoice.value = cfg.ttsVoice ?? "Alex";
-
   const side = cfg.overlayPosition ?? "right";
-  settingsPanel.querySelectorAll("input[name='overlay-side']").forEach((r) => {
+  document.querySelectorAll("input[name='overlay-side']").forEach((r) => {
     r.checked = r.value === side;
   });
 
-  settingsDismissSpeed.value = cfg.overlayDismissSpeed ?? "normal";
+  const speedSel = document.getElementById("cfg-dismiss-speed");
+  if (speedSel && cfg.overlayDismissSpeed) speedSel.value = cfg.overlayDismissSpeed;
 
-  settingsPanel.classList.add("open");
-  settingsPanel.removeAttribute("aria-hidden");
+  const calloutSel = document.getElementById("cfg-callouts");
+  if (calloutSel && (cfg.engineerCallouts ?? cfg.proactiveEvents))
+    calloutSel.value = cfg.engineerCallouts ?? cfg.proactiveEvents;
 };
 
-const closeSettings = () => {
-  settingsPanel.classList.remove("open");
-  settingsPanel.setAttribute("aria-hidden", "true");
-};
+saveBtn?.addEventListener("click", async () => {
+  if (!isElectron) return;
 
-const saveSettings = async () => {
   const sessionTypes = Array.from(
-    settingsSessionTypes.querySelectorAll("input[type=checkbox]")
+    document.querySelectorAll("#cfg-session-types input[type=checkbox]")
   ).filter((cb) => cb.checked).map((cb) => cb.value);
 
   const overlayPosition =
-    settingsPanel.querySelector("input[name='overlay-side']:checked")?.value ?? "right";
+    document.querySelector("input[name='overlay-side']:checked")?.value ?? "right";
 
   await window.electronAPI.setConfig({
-    udpPort: parseInt(settingsUdpPort.value, 10) || 20777,
-    serverPort: parseInt(settingsServerPort.value, 10) || 8080,
+    udpPort:           parseInt(document.getElementById("cfg-udp-port")?.value, 10)    || 20777,
+    serverPort:        parseInt(document.getElementById("cfg-server-port")?.value, 10) || 8080,
     sessionTypes,
-    ttsVoice: settingsTtsVoice.value.trim() || "Alex",
     overlayPosition,
-    overlayDismissSpeed: settingsDismissSpeed.value,
+    overlayDismissSpeed:  document.getElementById("cfg-dismiss-speed")?.value ?? "normal",
+    engineerCallouts:     document.getElementById("cfg-callouts")?.value ?? "critical",
   });
 
-  closeSettings();
+  const original = saveBtn.textContent;
+  saveBtn.textContent = "Saved ✓";
+  saveBtn.disabled = true;
+  setTimeout(() => { saveBtn.textContent = original; saveBtn.disabled = false; }, 1500);
+});
+
+hotkeyBtn?.addEventListener("click", startHotkeyCapture);
+
+const savedEnhancement = localStorage.getItem(MIC_ENHANCEMENT_KEY) || "off";
+const enhancementSel = document.getElementById("cfg-mic-enhancement");
+if (enhancementSel) enhancementSel.value = savedEnhancement;
+
+document.getElementById("cfg-mic-enhancement")?.addEventListener("change", async (e) => {
+  const enhancement = e.target.value;
+  localStorage.setItem(MIC_ENHANCEMENT_KEY, enhancement);
+  await initRecorder(localStorage.getItem(MIC_DEVICE_KEY) || "", enhancement);
+});
+
+document.getElementById("cfg-mic-device")?.addEventListener("change", async (e) => {
+  const deviceId = e.target.value;
+  localStorage.setItem(MIC_DEVICE_KEY, deviceId);
+  await initRecorder(deviceId, localStorage.getItem(MIC_ENHANCEMENT_KEY) || "off");
+});
+
+micTestBtn?.addEventListener("mousedown", startMicTest);
+micTestBtn?.addEventListener("mouseup", stopMicTest);
+["mouseleave", "touchend", "touchcancel"].forEach((ev) =>
+  micTestBtn?.addEventListener(ev, stopMicTest)
+);
+
+// ── Callout SSE ───────────────────────────────────────────────
+const connectCalloutStream = () => {
+  const es = new EventSource("/callout-stream");
+  es.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type !== "callout") return;
+      window.electronAPI?.showOverlayDriver({
+        driver: "",
+        driverText: "",
+        teamColor: teamColor(msg.playerTeam),
+      });
+      if (msg.display_reply) {
+        window.electronAPI?.updateOverlayEngineer({ engineerText: msg.display_reply });
+      }
+      playAgentAudio(msg.engineer_reply);
+    } catch {}
+  };
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectCalloutStream, 5000);
+  };
 };
+connectCalloutStream();
 
-if (isElectron && settingsBtn) settingsBtn.addEventListener("click", openSettings);
-if (settingsBack) settingsBack.addEventListener("click", closeSettings);
-if (settingsSave) settingsSave.addEventListener("click", saveSettings);
-if (settingsRebind) settingsRebind.addEventListener("click", startHotkeyCapture);
-
+// ── Init ──────────────────────────────────────────────────────
 await initHotkey();
 bindElectronHotkey();
-if (hotkeyBtn) {
-  hotkeyBtn.addEventListener("click", startHotkeyCapture);
-}
-
-await initRecorder();
+await loadConfigIntoUI();
+await initRecorder(
+  localStorage.getItem(MIC_DEVICE_KEY) || "",
+  localStorage.getItem(MIC_ENHANCEMENT_KEY) || "off"
+);

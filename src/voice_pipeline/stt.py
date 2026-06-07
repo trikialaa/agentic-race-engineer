@@ -10,20 +10,21 @@ logger = logging.getLogger(__name__)
 # F1 jargon and all current grid surnames — boosted for Nova-3 recognition
 STATIC_KEYTERMS: list[str] = [
     # Race control / strategy
-    "DRS", "ERS", "VSC", "safety car", "virtual safety car", "pit", "box",
-    "undercut", "overcut", "pit window", "pit stop", "pit lane", "pit wall",
-    "fastest lap", "lap time", "sector", "gap", "interval", "delta",
-    "option", "prime", "soft", "medium", "hard", "inter", "intermediate", "wet",
-    "tyre", "compound", "degradation", "wear", "graining", "blistering",
-    "front wing", "rear wing", "floor", "diff", "brake bias",
-    "fuel load", "fuel saving", "push", "manage", "backing up",
-    # 2024/25/26 grid surnames
+    "box", "box box", "DRS", "ERS", "VSC", "safety car",
+    "undercut", "overcut", "pit window",
+    "soft", "medium", "hard", "inter", "intermediate",
+    "tyre", "degradation", "graining",
+    "gap", "interval", "delta", "sector",
+    "fuel load", "fuel saving", "brake bias",
+    "radio check", "lap"
+    # Surnames (unique / phonetically tricky)
     "Verstappen", "Norris", "Leclerc", "Piastri", "Russell", "Hamilton",
     "Alonso", "Sainz", "Perez", "Gasly", "Ocon", "Stroll", "Albon",
-    "Bottas", "Zhou", "Magnussen", "Hulkenberg", "Tsunoda", "Lawson",
+    "Bottas", "Magnussen", "Hulkenberg", "Tsunoda", "Lawson",
     "Bearman", "Colapinto", "Doohan", "Antonelli", "Hadjar",
-    # 2026 additions
     "Lindblad", "Bortoleto",
+    # First names that are ambiguous or uncommon
+    "Oscar", "Lando", "Guanyu", "Isack", "Kimi", "Yuki",
 ]
 
 
@@ -47,6 +48,7 @@ class STT():
                 response = self.client.listen.v1.media.transcribe_file(
                     request=audio_bytes,
                     model=self.model,
+                    language="en",
                     smart_format=True,
                     keyterm=keyterms,
                 )

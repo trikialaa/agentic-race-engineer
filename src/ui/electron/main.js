@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, screen, Menu } = require("electron");
 const { uIOhook, UiohookKey, WheelDirection } = require("uiohook-napi");
 
 const DEFAULT_URL = "http://localhost:8080";
@@ -432,15 +432,21 @@ function createOverlayWindow() {
 }
 
 function createWindow() {
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 900,
+    width: 440,
+    height: 640,
+    resizable: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      devTools: false,
     },
   });
+
+  mainWindow.webContents.on("context-menu", (e) => e.preventDefault());
 
   const targetUrl = process.env.F1_RADIO_URL || DEFAULT_URL;
   mainWindow.loadURL(targetUrl);

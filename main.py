@@ -16,7 +16,7 @@ from typing import Iterable, List, Optional
 from werkzeug.serving import make_server
 
 from src.config import load as load_config
-from src.session_manager import web_transcribe_server
+from src.web import web_transcribe_server
 
 ROOT = Path(__file__).resolve().parent
 

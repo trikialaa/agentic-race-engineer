@@ -24,7 +24,22 @@
       "Bash(curl -s \"https://trmaker.pages.dev/assets/index-BG5LA7Nm.css\")",
       "Bash(curl -s \"https://trmaker.pages.dev/fonts/stylesheet.css\")",
       "Bash(curl -s \"https://trmaker.pages.dev/assets/index-ChL6fQsZ.js\")",
-      "Bash(grep -oE '\"[^\"]{10,}\"')"
+      "Bash(grep -oE '\"[^\"]{10,}\"')",
+      "WebFetch(domain:developers.deepgram.com)",
+      "WebSearch",
+      "Bash(python -c \"from src.mcp.tools import register_mcp_tools; from fastmcp import FastMCP; from src.live_data_engine.capture import F1TelemetryCapture; mcp = FastMCP\\('test'\\); capture = F1TelemetryCapture\\(\\); register_mcp_tools\\(mcp, capture\\); print\\('tools OK'\\)\")",
+      "Bash(python -c \"from src.mcp import functions; from src.live_data_engine.capture import F1TelemetryCapture; c = F1TelemetryCapture\\(\\); result = functions.get_context_frame\\(c\\); print\\('context_frame OK, keys:', list\\(result.keys\\(\\)\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(timeout 12 python -m src.mcp.server)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(python helpers/udp_sampler/replay.py --loop)",
+      "Bash(python -m src.mcp.server --transport http --port 20915)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\" --max-time 3 http://127.0.0.1:8080/callout-stream)",
+      "Bash(curl -s http://127.0.0.1:8080/session-state)",
+      "Bash(python3 -c ' *)",
+      "Bash(kill 76313 76314)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

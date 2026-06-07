@@ -6,15 +6,19 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import sys
-from typing import Optional
+import time
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from src.voice_pipeline.callouts import CalloutMonitor
 
 logger = logging.getLogger(__name__)
 
 from agent_framework import MCPStdioTool
 from agent_framework.openai import OpenAIChatClient
 from src import config as _app_config
-
 SYSTEM_PROMPT = """
 # SYSTEM:
 You are an F1 Race Engineer, supporting a player during an F1 game session.
@@ -52,14 +56,14 @@ You will act as if you are a real F1 race engineer and not break character.
 - Never use values from earlier messages in the conversation for current telemetry — they are stale.
 - If the context frame does not contain what the driver asked for, say so briefly.
 
-# TTS VOICE FORMATTING:
-- For urgent situations (safety car, incident, pit window closing, undercut threat): prefix with [say urgently at a fast pace]
-- For concern (damage, fuel warning, tyre failure, big gap opening): prefix with [say with concern in a low voice]
-- For positive moments (overtake, fastest lap, position gained, gap closing fast): prefix with [say excitedly]
-- For everything else: no prefix tag.
-- Never combine contradictory instructions in one tag.
+# OUTPUT:
 - No markdown, bullet points, asterisks, or special characters in your reply.
 - Use compact numeric notation: "0.2s" not "two tenths", "P3" not "position three", "L4" not "lap four".
+
+# CALLOUTS:
+- When the message starts with [CALLOUT], you are alerting the driver about a race event unprompted — not answering a question.
+- One sentence maximum. State the fact and the immediate action required if any.
+- Do not ask questions. Do not explain further.
 
 # EXAMPLES:
 - Driver: "Radio check"
@@ -67,19 +71,20 @@ You will act as if you are a real F1 race engineer and not break character.
 - Driver: "Gap to Verstappen?"
 - Engineer: "About 0.2s."
 - Driver: "Box box?"
-- Engineer: "[say urgently at a fast pace] Not yet, two more laps, box on L4."
+- Engineer: "Not yet, two more laps, box on L4."
 - Driver: "Damage?"
-- Engineer: "[say with concern in a low voice] Front wing, minor. Keep an eye on it."
+- Engineer: "Front wing, minor. Keep an eye on it."
 - Driver: "Gap ahead?"
 - Engineer: "0.3s." — NOT "0.3s, and Leclerc is closing from behind at 0.2s."
+- [CALLOUT] Safety Car deployed.
+- Engineer: "Safety car, box this lap."
 """
 
 
 MAX_HISTORY_TURNS = 10
-SESSION_POLL_INTERVAL = 3.0  # seconds between background session checks
-RACE_SESSION_TYPES = frozenset(_app_config.get("sessionTypes", ["Race", "Race 2", "Race 3"]))
+SESSION_POLL_INTERVAL = 3.0
+RACE_SESSION_TYPES = frozenset(_app_config.get("sessionTypes", ["Race", "Race 2", "Feature Race"]))
 ACTIVE_PHASES = frozenset({"racing", "sc_vsc", "opening_lap"})
-
 
 class RaceEngineerAgent:
     def __init__(self) -> None:
@@ -92,18 +97,28 @@ class RaceEngineerAgent:
         self._mcp_tool: Optional[MCPStdioTool] = None
         self._initialized = False
         self._init_lock = asyncio.Lock()
-        # Slim dialogue history: (driver_text, engineer_reply) — no context frames stored.
-        # Context frames are injected fresh each turn and never persisted in history,
-        # so prior turns don't accumulate stale telemetry in the LLM's input.
         self._history: list[tuple[str, str]] = []
-        # Names accumulated from context frames for STT keyterm boosting.
         self._known_names: set[str] = set()
         self._player_name: str | None = None
         self._player_team: str | None = None
         self._session_active: bool = False
         self._poll_task: asyncio.Task | None = None
-        # Serializes all MCP stdio pipe calls to prevent concurrent read/write interleaving.
         self._mcp_lock = asyncio.Lock()
+        self._last_ptt_ts: float = 0.0
+
+        self._callouts: Optional[CalloutMonitor] = None
+
+    @property
+    def last_ptt_ts(self) -> float:
+        return self._last_ptt_ts
+
+    @property
+    def player_team(self) -> str | None:
+        return self._player_team
+
+    def set_callout_queue(self, q: queue.Queue) -> None:
+        from src.voice_pipeline.callouts import CalloutMonitor
+        self._callouts = CalloutMonitor(self, q)
 
     async def init_async(self) -> None:
         if self._initialized:
@@ -125,6 +140,7 @@ class RaceEngineerAgent:
                 instructions=SYSTEM_PROMPT,
             )
             self._initialized = True
+            self._event_last_checked_ts = time.time()
             self._poll_task = asyncio.get_running_loop().create_task(self._poll_session_loop())
             print("Runtime initialized successfully")
 
@@ -146,28 +162,32 @@ class RaceEngineerAgent:
         self._session_active = False
         self._initialized = False
 
+    async def _fetch_context_frame(self) -> str:
+        if self._mcp_tool is None:
+            return "{}"
+        async with self._mcp_lock:
+            raw = await asyncio.wait_for(
+                self._mcp_tool.call_tool("get_context_frame"),
+                timeout=1.5,
+            )
+        if isinstance(raw, list) and raw:
+            return raw[0].text
+        return "{}"
+
     async def reply_async(self, user_text: str) -> str:
         if not self._initialized:
             await self.init_async()
         assert self._agent is not None
 
+        self._last_ptt_ts = time.time()
+
         try:
-            async with self._mcp_lock:
-                snapshot_raw = await asyncio.wait_for(
-                    self._mcp_tool.call_tool("get_context_frame"),
-                    timeout=1.5,
-                ) if self._mcp_tool is not None else None
-            # MCPStdioTool returns a list of Content objects; extract .text from the first one.
-            if isinstance(snapshot_raw, list) and snapshot_raw:
-                snapshot = snapshot_raw[0].text
-            else:
-                snapshot = str(snapshot_raw)
+            snapshot = await self._fetch_context_frame()
             self._extract_names_from_snapshot(snapshot)
         except Exception as exc:
             logger.warning("get_context_frame failed: %s", exc)
             snapshot = {"error": f"context_unavailable: {exc}"}
 
-        # Prepend the last N dialogue turns (driver text + replies only, no past snapshots).
         history_prefix = ""
         if self._history:
             lines = []
@@ -183,14 +203,11 @@ class RaceEngineerAgent:
             f"Driver: {user_text}"
         )
 
-        # Run stateless — no session — so the framework never accumulates messages.
-        # Hold _mcp_lock for the full agent.run() duration so the background poll task
-        # cannot interleave its own call_tool call on the shared stdio pipe.
         run_kwargs = {"tools": self._mcp_tool} if self._mcp_tool is not None else {}
         try:
             async with self._mcp_lock:
                 result = await asyncio.wait_for(
-                    self._agent.run(request_text, **run_kwargs),
+                    self._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
                     timeout=7.0,
                 )
         except asyncio.TimeoutError:
@@ -210,6 +227,8 @@ class RaceEngineerAgent:
             try:
                 await asyncio.sleep(SESSION_POLL_INTERVAL)
                 await self._refresh_session_state()
+                if self._session_active and self._callouts is not None:
+                    await self._callouts.check()
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -219,14 +238,8 @@ class RaceEngineerAgent:
         if self._mcp_tool is None:
             return
         try:
-            async with self._mcp_lock:
-                raw = await asyncio.wait_for(
-                    self._mcp_tool.call_tool("get_context_frame"),
-                    timeout=2.0,
-                )
-            if isinstance(raw, list) and raw:
-                snapshot = raw[0].text
-            else:
+            snapshot = await self._fetch_context_frame()
+            if snapshot == "{}":
                 self._session_active = False
                 return
             self._extract_names_from_snapshot(snapshot)
@@ -248,7 +261,11 @@ class RaceEngineerAgent:
         self._known_names.clear()
         self._player_name = None
         self._player_team = None
+        if self._callouts is not None:
+            self._callouts.reset()
         logger.info("New race session started — history and context cleared.")
+
+    # ── Helpers ───────────────────────────────────────────────────
 
     def is_session_active(self) -> bool:
         return self._session_active
@@ -261,11 +278,9 @@ class RaceEngineerAgent:
             data = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
             ctx = data.get("context", {}) if isinstance(data, dict) else {}
             names: list[str] = []
-            # Track name
             track = ctx.get("session", {}).get("track")
             if isinstance(track, str):
                 names.append(track)
-            # Player name
             player = ctx.get("player", {})
             player_name = player.get("name")
             if isinstance(player_name, str):
@@ -275,7 +290,6 @@ class RaceEngineerAgent:
             player_team = player.get("team")
             if isinstance(player_team, str) and player_team not in ("unknown", "Unknown"):
                 self._player_team = player_team
-            # Adjacent drivers
             gap = ctx.get("player", {}).get("gap", {})
             for key in ("frontDriver", "backDriver"):
                 driver = gap.get(key)
