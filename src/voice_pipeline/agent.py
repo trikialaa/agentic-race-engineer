@@ -356,9 +356,7 @@ class RaceEngineerAgent:
         except Exception as exc:
             logger.warning("Callout context frame failed: %s", exc)
             snapshot = "{}"
-        request_text = (
-            f"Context frame, latest telemetry snapshot:\n{snapshot}\n\n{callout_msg}"
-        )
+        request_text = f"Context frame, latest telemetry snapshot:\n{snapshot}\n\n{callout_msg}"
         run_kwargs = {"tools": self._mcp_tool} if self._mcp_tool is not None else {}
         try:
             async with self._mcp_lock:
