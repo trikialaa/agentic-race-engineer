@@ -136,17 +136,19 @@ class TestCalloutQueuePayload:
     def test_fire_pushes_correct_shape(self):
         """Fire a callout and verify the queue payload has the right type and fields."""
         import asyncio
+        from unittest.mock import patch
 
         monitor, agent = _make_monitor()
-        mock_result = MagicMock()
-        mock_result.text = "Safety car, box this lap."
-        agent._agent.run = AsyncMock(return_value=mock_result)
-        agent._fetch_context_frame = AsyncMock(return_value="{}")
+        agent.run_callout_async = AsyncMock(return_value="Safety car, box this lap.")
 
         entry = _make_event("SCAR", "critical", time.time() - 1.0, True)
 
         async def _run():
-            await monitor._fire(entry, time.time())
+            with patch(
+                "src.voice_pipeline.callouts.build_callout_message",
+                new=AsyncMock(return_value="[CALLOUT] Safety car. Box this lap."),
+            ):
+                await monitor._fire(entry, time.time())
 
         asyncio.run(_run())
 
@@ -156,3 +158,26 @@ class TestCalloutQueuePayload:
         assert "engineer_reply" in msg
         assert "display_reply" in msg
         assert "playerTeam" in msg
+
+    def test_fire_suppressed_does_not_advance_global_rate_limit(self):
+        """When builder returns None, _last_callout_ts must not advance."""
+        import asyncio
+        from unittest.mock import patch
+
+        monitor, agent = _make_monitor()
+        agent.run_callout_async = AsyncMock(return_value="irrelevant")
+        original_ts = monitor._last_callout_ts
+
+        entry = _make_event("COLL", "critical", time.time() - 1.0, True)
+
+        async def _run():
+            with patch(
+                "src.voice_pipeline.callouts.build_callout_message",
+                new=AsyncMock(return_value=None),  # suppressed
+            ):
+                await monitor._fire(entry, time.time())
+
+        asyncio.run(_run())
+
+        assert monitor._queue.empty()
+        assert monitor._last_callout_ts == original_ts

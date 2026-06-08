@@ -68,7 +68,17 @@ def main():
     telemetry_capture.port = args.udp_port
     telemetry_capture.events_buffer_size = max(1, args.events_buffer)
 
-    telemetry_capture.start_capture()
+    fixture_path = os.getenv("F1_MCP_FIXTURE")
+    if fixture_path:
+        from src.live_data_engine.fixture_replay import replay_fixture_into
+
+        frame_str = os.getenv("F1_MCP_FIXTURE_FRAME")
+        frame = int(frame_str) if frame_str is not None else None
+        replay_fixture_into(telemetry_capture, Path(fixture_path), frame=frame)
+        logger.info("MCP server running in fixture-replay mode: %s frame=%s", fixture_path, frame)
+    else:
+        telemetry_capture.start_capture()
+
     try:
         if args.transport == "stdio":
             mcp.run(transport="stdio")
@@ -88,7 +98,8 @@ def main():
             raise last_error
         raise RuntimeError("Failed to start HTTP MCP transport")
     finally:
-        telemetry_capture.stop_capture()
+        if not fixture_path:
+            telemetry_capture.stop_capture()
 
 
 if __name__ == "__main__":

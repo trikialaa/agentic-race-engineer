@@ -161,17 +161,22 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
     low_fuel_mode_hard = low_fuel_mode == 1
     standings = capture.query.get_race_standings(limit=22)
     player_idx = capture.player_car_index
+    # Grid (starting) position from lap data for the player's car
+    try:
+        _, _laps, _ = capture.query._lap_participant_snapshot()
+        _player_lap = _laps[player_idx] if 0 <= player_idx < len(_laps) else {}
+        start_position: int | None = _player_lap.get("gridPosition") or None
+        if isinstance(start_position, int) and start_position <= 0:
+            start_position = None
+    except Exception:
+        start_position = None
     fuel_laps_raw = _round(fuel.get("fuelRemainingLaps"), 2)
-    if low_fuel_mode_hard:
-        fuel_laps_out = fuel_laps_raw
-        fuel_delta_laps = (
-            _round((fuel_laps_raw - laps_remaining), 2)
-            if fuel_laps_raw is not None and laps_remaining is not None
-            else None
-        )
-    else:
-        fuel_laps_out = None
-        fuel_delta_laps = None
+    fuel_laps_out = fuel_laps_raw
+    fuel_delta_laps = (
+        _round((fuel_laps_raw - laps_remaining), 2)
+        if fuel_laps_raw is not None and laps_remaining is not None
+        else None
+    )
     player_position = player.get("position")
     front_driver = (
         capture.query.get_driver_by_position(player_position - 1)
@@ -221,6 +226,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
                 ),
                 "position": {
                     "current": player_position,
+                    "start": start_position,
                     "total": total_positions,
                 },
                 "gap": {

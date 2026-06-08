@@ -36,6 +36,10 @@ from src.udp_parser.constants import (
 
 logger = logging.getLogger(__name__)
 
+# Yellow-flag dwell: a YELW event is only emitted once the flag has been continuously
+# present for this many seconds, suppressing brief flickers.
+_YELLOW_DWELL_S = 4.0
+
 PACKET_TYPES = {
     0: ("motion", decode_motion),
     1: ("session", decode_session),
@@ -136,6 +140,7 @@ class F1TelemetryCapture:
         self._event_dedupe_ttl_s = 2.0
         self._event_last_emitted: dict[str, float] = {}
         self._last_player_yellow: bool | None = None
+        self._pending_yellow_ts: float | None = None  # rising-edge timestamp for dwell
 
         # Track last seen states per car
         self._last_lap_num = [0 for _ in range(self.max_cars)]
@@ -552,16 +557,28 @@ class F1TelemetryCapture:
                 except Exception:
                     player_yellow = None
                 if isinstance(player_yellow, bool):
-                    if player_yellow and self._last_player_yellow is not True:
-                        self._emit_classified_event_locked(
-                            "YELW",
-                            "Yellow Flag",
-                            {
-                                "localPlayerYellow": True,
-                                "immediateRisk": self._player_immediate_proximity_risk_locked(),
-                            },
-                            now,
-                        )
+                    if player_yellow:
+                        if self._last_player_yellow is not True:
+                            # Rising edge: start the dwell timer
+                            if self._pending_yellow_ts is None:
+                                self._pending_yellow_ts = now
+                        if self._pending_yellow_ts is not None and (
+                            now - self._pending_yellow_ts >= _YELLOW_DWELL_S
+                        ):
+                            # Dwell satisfied: emit once and clear the pending timer
+                            self._emit_classified_event_locked(
+                                "YELW",
+                                "Yellow Flag",
+                                {
+                                    "localPlayerYellow": True,
+                                    "immediateRisk": self._player_immediate_proximity_risk_locked(),
+                                },
+                                now,
+                            )
+                            self._pending_yellow_ts = None
+                    else:
+                        # Yellow cleared before dwell elapsed: drop silently
+                        self._pending_yellow_ts = None
                     self._last_player_yellow = player_yellow
 
                 session_store.snapshot = new_snapshot

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import time
 from collections.abc import Callable
 from inspect import Signature, signature
 from typing import Any, get_type_hints
@@ -28,9 +31,10 @@ TOOL_DESCRIPTIONS = {
     ),
     "get_leaderboard": (
         "Full field view: every car's race position, gap to leader, tyre compound and age, pit stop count, "
-        "and penalties. Use this when the driver asks about the wider field, cars outside their immediate "
-        "vicinity, or when comparing strategies across multiple drivers. "
-        "Prefer get_context_frame for questions about the two cars directly around the player."
+        "and penalties. Call this whenever the driver asks about any specific driver who is NOT shown as "
+        "frontDriver or backDriver in the context frame — including the race leader, the driver behind them, "
+        "or any named driver you cannot locate in the immediate gap data. "
+        "Also use for comparing strategies across multiple drivers or questions about the wider field."
     ),
     "get_lap_times": (
         "Lap-by-lap and sector-by-sector pace for all drivers. Use for questions about who is fastest, "
@@ -43,11 +47,14 @@ TOOL_DESCRIPTIONS = {
         "is expected to evolve. Not needed for dry-weather strategy calls."
     ),
     "get_strategy": (
-        "Pit stop strategy data: optimal pit window (ideal and latest lap, laps remaining until window), "
-        "estimated rejoin position, current tyre compound and age, and all available tyre sets with "
-        "remaining wear and pace delta. Use for pit timing, undercut/overcut analysis, and tyre choice. "
-        "get_context_frame has the current tyre compound and age; call this only when the driver "
-        "is asking about when to pit or which tyre to fit."
+        "Pit stop strategy data: lapsRemaining in the race, optimal pit window (ideal and latest lap, "
+        "laps until window), estimated rejoin position, current tyre compound/age/wear, and all available "
+        "tyre sets with remaining wear and pace delta (lapDeltaMs — milliseconds slower than current tyre, "
+        "lower = faster). "
+        "ALWAYS call this when the driver asks which tyre to fit or for any tyre compound recommendation — "
+        "lapDeltaMs is the only reliable way to compare compounds, but ALSO cross-check lapsRemaining: "
+        "a faster compound that cannot survive the remaining stint is the wrong choice. "
+        "Also call for pit timing, undercut/overcut analysis, and rejoin position."
     ),
     "get_recent_events": (
         "Chronological list of classified race events: safety car, red flag, collisions, penalties, "
@@ -93,6 +100,22 @@ def generated_tool({param_defs}):
         wrapper.__signature__ = tool_signature
         wrapper.__annotations__ = annotations
         wrapper.__doc__ = TOOL_DESCRIPTIONS.get(tool_func.__name__, tool_func.__doc__)
+        tool_log_path = os.getenv("F1_MCP_TOOL_LOG")
+        if tool_log_path:
+            inner = wrapper
+            tool_name = tool_func.__name__
+
+            def _logged(*args, _inner=inner, _name=tool_name, _log=tool_log_path, **kwargs):
+                with open(_log, "a") as _f:
+                    _f.write(json.dumps({"tool": _name, "ts": time.time()}) + "\n")
+                return _inner(*args, **kwargs)
+
+            _logged.__name__ = wrapper.__name__
+            _logged.__signature__ = tool_signature
+            _logged.__annotations__ = annotations
+            _logged.__doc__ = wrapper.__doc__
+            wrapper = _logged
+
         mcp.tool(
             name=tool_func.__name__,
             description=TOOL_DESCRIPTIONS.get(tool_func.__name__),

@@ -16,6 +16,7 @@
       "team": "Williams",
       "position": {
         "current": 5,
+        "start": 12,
         "total": 20
       },
       "gap": {
@@ -43,8 +44,8 @@
         },
         "fuel": {
           "status": "nominal",
-          "lapsRemaining": "unknown",
-          "deltaLaps": "unknown"
+          "lapsRemaining": 2.51,
+          "deltaLaps": -1.49
         },
         "ersPct": 99.7,
         "damageByPart": {

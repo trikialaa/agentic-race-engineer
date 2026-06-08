@@ -24,6 +24,7 @@ def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
     tyre_sets_data = capture.query.get_tyre_sets()
     tyres = capture.query.get_tyres_status()
     current_lap = capture.query.get_current_lap()
+    laps_remaining = capture.query.get_num_remaining_laps()
 
     ideal_lap = pit_window.get("idealLap") or None
     latest_lap = pit_window.get("latestLap") or None
@@ -34,6 +35,7 @@ def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
     )
 
     available_sets: list[dict[str, Any]] = []
+    fitted_wear: int | None = None
     if isinstance(tyre_sets_data, dict):
         for s in tyre_sets_data.get("tyreSets", []):
             if not isinstance(s, dict) or not s.get("available"):
@@ -44,12 +46,15 @@ def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
             )
             wear = s.get("wear")
             lap_delta_ms = s.get("lapDeltaTime")
+            is_fitted = bool(s.get("isFitted"))
+            if is_fitted and isinstance(wear, int):
+                fitted_wear = wear
             available_sets.append(
                 {
                     "compound": compound,
                     "wear": wear,
                     "isNew": isinstance(wear, int) and wear == 0,
-                    "isFitted": bool(s.get("isFitted")),
+                    "isFitted": is_fitted,
                     "lapDeltaMs": lap_delta_ms,
                 }
             )
@@ -57,6 +62,7 @@ def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
     return _strip_nulls(
         {
             "time": _clock_now(),
+            "lapsRemaining": laps_remaining,
             "pitWindow": {
                 "idealLap": ideal_lap,
                 "latestLap": latest_lap,
@@ -66,6 +72,7 @@ def get_strategy(capture: F1TelemetryCapture) -> dict[str, Any]:
             "currentTyre": {
                 "compound": _normalize_tyre_compound(tyres.get("compound")),
                 "ageLaps": tyres.get("ageLaps"),
+                "wear": fitted_wear,
             },
             "availableSets": available_sets,
         }

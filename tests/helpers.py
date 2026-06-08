@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import json
-import struct
 from pathlib import Path
 from typing import Any
+
+from src.live_data_engine.fixture_replay import replay_fixture_into
 
 FIXTURE_BIN = Path(__file__).parent / "fixtures" / "race_catalunya_2025.bin"
 MARKERS_JSON = Path(__file__).parent / "fixtures" / "markers.json"
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
-
-HDR_FMT = "<HBBBBBQfIIBB"
-HDR_SIZE = struct.calcsize(HDR_FMT)
 
 _MASK_KEYS = frozenset({"time", "serverTime", "ts", "mode"})
 
@@ -30,48 +28,16 @@ def load_markers() -> dict[str, int]:
     return json.loads(MARKERS_JSON.read_text())
 
 
-def _read_fixture_packets(bin_path: Path = FIXTURE_BIN) -> list[bytes]:
-    data = bin_path.read_bytes()
-    pos = 0
-    pkts = []
-    while pos + 2 <= len(data):
-        length = int.from_bytes(data[pos : pos + 2], "little")
-        pos += 2
-        if pos + length > len(data):
-            break
-        pkts.append(data[pos : pos + length])
-        pos += length
-    return pkts
-
-
 def load_capture_to(frame: int | None = None, bin_path: Path = FIXTURE_BIN):
+    """Return an F1TelemetryCapture fed with fixture packets up to `frame` (inclusive).
+
+    No UDP socket or thread started — feeds through the same production
+    decode+_update_data path the socket loop uses.
     """
-    Return an F1TelemetryCapture fed with fixture packets up to `frame`
-    (inclusive). No UDP socket or thread started — feeds through the same
-    production decode+_update_data path the socket loop uses.
-    """
-    from src.live_data_engine.capture import PACKET_TYPES, F1TelemetryCapture
-    from src.udp_parser import PacketHeader
+    from src.live_data_engine.capture import F1TelemetryCapture
 
     cap = F1TelemetryCapture()
-    for pkt in _read_fixture_packets(bin_path):
-        if len(pkt) < HDR_SIZE:
-            continue
-        buf = memoryview(pkt)
-        try:
-            hdr = PacketHeader.from_buf(buf)
-        except Exception:
-            continue
-        if frame is not None and hdr.m_frameIdentifier > frame:
-            break
-        cap.player_car_index = hdr.m_playerCarIndex
-        pid = hdr.m_packetId
-        if pid in PACKET_TYPES:
-            name, decoder = PACKET_TYPES[pid]
-            try:
-                cap._update_data(name, decoder(buf))
-            except Exception:
-                pass
+    replay_fixture_into(cap, bin_path, frame=frame)
     return cap
 
 

@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck run run-headless fixture
+.PHONY: install test lint typecheck run run-headless fixture evals
 
 install:
 	pip install -r requirements.txt -r requirements-dev.txt
@@ -22,3 +22,6 @@ run-headless:
 
 fixture:
 	python tests/fixtures/build_fixture.py
+
+evals:
+	python -m evals.runner

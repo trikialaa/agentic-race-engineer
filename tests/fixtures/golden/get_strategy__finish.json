@@ -1,4 +1,5 @@
 {
+  "lapsRemaining": 0,
   "pitWindow": {
     "idealLap": "unknown",
     "latestLap": "unknown",
@@ -7,7 +8,8 @@
   "rejoinPosition": 20,
   "currentTyre": {
     "compound": "soft",
-    "ageLaps": 0
+    "ageLaps": 0,
+    "wear": 4
   },
   "availableSets": [
     {

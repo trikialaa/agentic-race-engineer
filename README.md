@@ -78,7 +78,7 @@ npm ci
 
 # Configure API keys
 cp .env.example .env
-# Edit .env — fill in DEEPGRAM_API_KEY, BASETEN_*, INWORLD_*
+# Edit .env — fill in DEEPGRAM_API_KEY, OPENAI_*, INWORLD_*
 ```
 
 ### Run
@@ -113,7 +113,7 @@ Install git hooks (runs ruff on every commit):
 pre-commit install
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [tests/README.md](tests/README.md) for full details.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [tests/README.md](tests/README.md), and [docs/evals.md](docs/evals.md) for full details.
 
 ---
 

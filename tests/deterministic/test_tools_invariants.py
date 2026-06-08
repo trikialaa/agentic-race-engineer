@@ -220,6 +220,20 @@ class TestStrategyInvariants:
         for s in get_strategy(cap_start)["availableSets"]:
             assert s["compound"] in valid
 
+    def test_laps_remaining_is_int_or_absent(self, cap_start):
+        from src.mcp.functions.events import get_strategy
+
+        result = get_strategy(cap_start)
+        if "lapsRemaining" in result:
+            assert isinstance(result["lapsRemaining"], int)
+
+    def test_current_tyre_wear_is_int_or_absent(self, cap_start):
+        from src.mcp.functions.events import get_strategy
+
+        result = get_strategy(cap_start)
+        if "wear" in result.get("currentTyre", {}):
+            assert isinstance(result["currentTyre"]["wear"], int)
+
 
 # ── get_recent_events ────────────────────────────────────────────────────────
 

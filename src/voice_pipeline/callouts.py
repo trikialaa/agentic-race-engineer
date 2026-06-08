@@ -7,6 +7,7 @@ import queue
 import time
 from typing import TYPE_CHECKING
 
+from src.voice_pipeline.callout_specs import build_callout_message
 from src.voice_pipeline.tts_utils import sanitize_for_tts
 
 if TYPE_CHECKING:
@@ -40,11 +41,13 @@ class CalloutMonitor:
         self._event_last_checked_ts: float = time.time()
         self._event_cooldowns: dict[str, float] = {}
         self._last_callout_ts: float = 0.0
+        self._last_damage_levels: dict[str, str] = {}
 
     def reset(self) -> None:
         self._event_cooldowns.clear()
         self._last_callout_ts = 0.0
         self._event_last_checked_ts = time.time()
+        self._last_damage_levels = {}
 
     def _severity_filter(self) -> list[str]:
         from src import config as _app_config
@@ -118,52 +121,22 @@ class CalloutMonitor:
         assert agent._agent is not None
         code = entry.get("code", "")
         event_name = entry.get("eventName", code)
-        details = entry.get("details", {}) or {}
-        involves_player = entry.get("involvesPlayer", False)
 
-        # Update timestamps before the LLM call to prevent concurrent fires
+        # Always update the per-event cooldown so we don't re-fire the same event.
         self._event_cooldowns[code] = now
+
+        callout_msg = await build_callout_message(entry, agent, monitor=self)
+        if not callout_msg:
+            # Builder suppressed the event (e.g. harmless tap, formation SC).
+            # Do NOT advance _last_callout_ts so the global rate limit isn't consumed.
+            logger.debug("Callout suppressed by builder: %s", event_name)
+            return
+
+        # Advance global rate limit only for events that actually fire.
         self._last_callout_ts = now
 
-        detail_parts: list[str] = []
-        if involves_player:
-            detail_parts.append("involving you")
-        if penalty_type := details.get("penaltyTypeName"):
-            detail_parts.append(str(penalty_type))
-        if penalty_time := details.get("time"):
-            if isinstance(penalty_time, int) and penalty_time > 0:
-                detail_parts.append(f"{penalty_time}s")
-        detail_str = f" ({', '.join(detail_parts)})" if detail_parts else ""
-
-        callout_msg = (
-            f"[CALLOUT] {event_name}{detail_str}. "
-            "Alert the driver with one short engineer radio call."
-        )
-
-        try:
-            snapshot = await agent._fetch_context_frame()
-        except Exception as exc:
-            logger.warning("Callout context frame failed: %s", exc)
-            snapshot = "{}"
-
-        request_text = f"Context frame, latest telemetry snapshot:\n{snapshot}\n\n{callout_msg}"
-
-        run_kwargs = {"tools": agent._mcp_tool} if agent._mcp_tool is not None else {}
-        try:
-            async with agent._mcp_lock:
-                result = await asyncio.wait_for(
-                    agent._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
-                    timeout=7.0,
-                )
-        except TimeoutError:
-            logger.warning("Callout agent.run timed out for event %s", code)
-            return
-        except Exception as exc:
-            logger.warning("Callout agent.run failed for event %s: %s", code, exc)
-            return
-
-        reply_raw = getattr(result, "text", None)
-        if not isinstance(reply_raw, str) or not reply_raw.strip():
+        reply_raw = await agent.run_callout_async(callout_msg)
+        if not reply_raw:
             return
 
         self._queue.put(
