@@ -7,6 +7,10 @@ from pathlib import Path
 
 FIXTURE_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "race_catalunya_2025.bin"
 
+# Fixtures built from real gameplay recordings (helpers/build_recording_fixtures.py)
+REC_A_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_a.bin"
+REC_B_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_b.bin"
+
 # Frame indices from tests/fixtures/markers.json
 FRAMES = {
     "start": 127,
@@ -39,9 +43,16 @@ class Scenario:
     check_compact: bool = False
     # Assert the callout was suppressed (no response produced).
     expect_suppressed: bool = False
+    # Override to use a specific fixture bin (defaults to FIXTURE_BIN if None).
+    fixture_bin: Path | None = None
+    # Direct frame number — used when the scenario comes from a recorded session
+    # rather than the standard markers.json. When set, overrides FRAMES[frame_name].
+    frame_override: int | None = None
 
     @property
     def frame(self) -> int:
+        if self.frame_override is not None:
+            return self.frame_override
         return FRAMES[self.frame_name]
 
 
@@ -512,5 +523,111 @@ SCENARIOS: list[Scenario] = [
         rubric="Player collision at finish frame — fixture has no damage data above threshold, so builder should suppress the callout silently.",
         max_words=20,
         max_sentences=1,
+    ),
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RECORDED SESSION SCENARIOS (real gameplay, rec_session_a — Catalunya race)
+    # Session 20260611_183537: Norris/McLaren, dry race, ~17 laps
+    # Fixture: tests/fixtures/rec_session_a.bin
+    # ═══════════════════════════════════════════════════════════════════════════
+    Scenario(
+        id="rec_damage_check_clean",
+        frame_name="rec_a:f8566",
+        frame_override=8566,
+        fixture_bin=REC_A_BIN,
+        driver="What's my damage status?",
+        expect_tools=set(),
+        must_include=["undamaged"],
+        must_not_include=["critical", "warning"],
+        rubric="All damage is undamaged at this frame (front wing, rear wing, floor, diffuser). "
+        "Should confirm clean car in compact form. No alarm, no tool call needed — data is in context frame.",
+    ),
+    Scenario(
+        id="rec_pit_count",
+        frame_name="rec_a:f15489",
+        frame_override=15489,
+        fixture_bin=REC_A_BIN,
+        driver="How many cars have pitted so far?",
+        expect_tools={"get_leaderboard"},
+        must_include=["6"],
+        rubric="Must call get_leaderboard to count pitted cars. Answer is 6. "
+        "Short, direct. No unsolicited extra commentary.",
+    ),
+    Scenario(
+        id="rec_tyres_of_cars_ahead",
+        frame_name="rec_a:f22300",
+        frame_override=22300,
+        fixture_bin=REC_A_BIN,
+        driver="What tyres are the cars directly ahead running?",
+        expect_tools={"get_leaderboard"},
+        must_include=["albon", "medium"],
+        rubric="Must call get_leaderboard. Player is P8, Albon is P7 immediately ahead on mediums. "
+        "Should list tyre compounds for cars ahead. Compact, no invented data.",
+    ),
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RECORDED SESSION SCENARIOS (real gameplay, rec_session_b — Catalunya wet)
+    # Session 20260611_203103: Leclerc/Ferrari, storm → light rain, ~20 laps
+    # Fixture: tests/fixtures/rec_session_b.bin
+    # ═══════════════════════════════════════════════════════════════════════════
+    Scenario(
+        id="rec_storm_weather",
+        frame_name="rec_b:f3775",
+        frame_override=3775,
+        fixture_bin=REC_B_BIN,
+        driver="What's the rain status?",
+        expect_tools={"get_weather_forecast"},
+        must_include=["storm"],
+        must_not_include=["dry", "clear", "light cloud"],
+        rubric="Storm conditions, 93% rain risk next 10 minutes. Must call get_weather_forecast. "
+        "Should convey severity — this is serious weather, not just drizzle. Compact but urgent.",
+    ),
+    Scenario(
+        id="rec_wet_tyre_recommendation",
+        frame_name="rec_b:f8747",
+        frame_override=8747,
+        fixture_bin=REC_B_BIN,
+        driver="What tyre should I fit now?",
+        expect_tools={"get_strategy"},
+        must_not_include=["not available", "as an AI", "I don't have"],
+        rubric="Storm conditions, P20, currently on wets. Must call get_strategy. "
+        "Should recommend a wet-weather compound (inter or wet). Brief, direct. "
+        "Must stay in character — no tech-system language.",
+    ),
+    Scenario(
+        id="rec_teammate_position",
+        frame_name="rec_b:f19128",
+        frame_override=19128,
+        fixture_bin=REC_B_BIN,
+        driver="What position is my teammate?",
+        expect_tools={"get_leaderboard"},
+        must_include=["hamilton", "10"],
+        rubric="Player is Leclerc (Ferrari). Teammate is Hamilton at P10. Must call get_leaderboard "
+        "to identify the teammate and their position. Compact — name and position only.",
+    ),
+    Scenario(
+        id="rec_honest_position",
+        frame_name="rec_b:f20658",
+        frame_override=20658,
+        fixture_bin=REC_B_BIN,
+        driver="Am I gonna win this?",
+        expect_tools=set(),
+        must_include=["19"],
+        must_not_include=["can win", "will win", "great chance", "definitely"],
+        rubric="Player is P19 with 6 laps left, light rain. Must NOT claim they can win. "
+        "Should acknowledge the realistic position (P19) and stay in character — "
+        "brief, honest, not dismissive. A 'fight for points' tone is correct.",
+        max_words=40,
+    ),
+    Scenario(
+        id="rec_tyre_status_wet",
+        frame_name="rec_b:f28095",
+        frame_override=28095,
+        fixture_bin=REC_B_BIN,
+        driver="What tyre am I on and how are they holding up?",
+        expect_tools=set(),
+        must_include=["wet"],
+        must_not_include=["damage", "undamaged"],
+        rubric="Player is on wet tyres, age 5 laps, wear medium. Context frame has this. "
+        "Should report compound (wet), age, and wear level. Must not mention damage — "
+        "that is a different topic the driver did not ask about.",
     ),
 ]

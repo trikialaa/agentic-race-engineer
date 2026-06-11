@@ -190,9 +190,10 @@ def main():
         # Build the explicit env for the MCP stdio subprocess.
         # mcp's stdio_client uses get_default_environment() (not os.environ) by default,
         # so we must pass all needed vars explicitly via MCPStdioTool(env=...).
+        fixture = scenario.fixture_bin or FIXTURE_BIN
         mcp_env = {
             **os.environ,  # inherit everything (PATH, PYTHONPATH, venv, etc.)
-            "F1_MCP_FIXTURE": str(FIXTURE_BIN),
+            "F1_MCP_FIXTURE": str(fixture),
             "F1_MCP_FIXTURE_FRAME": str(scenario.frame),
             "F1_MCP_TOOL_LOG": tool_log_path,
         }
