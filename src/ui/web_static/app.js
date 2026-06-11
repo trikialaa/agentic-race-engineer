@@ -231,6 +231,7 @@ let rnnoiseWorkletLoaded = false;
 let rnnoiseNode = null;
 let compressorNode = null;
 let gainNode = null;
+let limiterNode = null;
 let recordingStream = null;
 
 const sendRecording = async () => {
@@ -352,6 +353,7 @@ const initRecorder = async (deviceId = "", enhancement = "off") => {
   if (rnnoiseNode)    { rnnoiseNode.disconnect();    rnnoiseNode    = null; }
   if (compressorNode) { compressorNode.disconnect(); compressorNode = null; }
   if (gainNode)       { gainNode.disconnect();       gainNode       = null; }
+  if (limiterNode)    { limiterNode.disconnect();    limiterNode    = null; }
   if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
 
   const isStandard = enhancement === "standard";
@@ -393,12 +395,21 @@ const initRecorder = async (deviceId = "", enhancement = "off") => {
 
     // Makeup gain: pushes compressed voice up to ~-18 dBFS target
     gainNode = ctx.createGain();
-    gainNode.gain.value = 8.0;  // +18 dB
+    gainNode.gain.value = 3.0;  // +10 dB — conservative to avoid clipping
+
+    // Brick-wall limiter: prevents clipping if gain pushes any peak over 0 dBFS
+    limiterNode = ctx.createDynamicsCompressor();
+    limiterNode.threshold.value = -1;   // engage just below 0 dBFS
+    limiterNode.knee.value      = 0;    // hard knee
+    limiterNode.ratio.value     = 20;   // near-infinite ratio = true limiter
+    limiterNode.attack.value    = 0.001; // 1ms — instantaneous
+    limiterNode.release.value   = 0.10;
 
     const dest = ctx.createMediaStreamDestination();
     chainEnd.connect(compressorNode);
     compressorNode.connect(gainNode);
-    gainNode.connect(dest);
+    gainNode.connect(limiterNode);
+    limiterNode.connect(dest);
     recordingStream = dest.stream;
 
     mediaRecorder = new MediaRecorder(recordingStream, {
