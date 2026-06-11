@@ -105,7 +105,8 @@ def decode_event(buf: memoryview):
             ),
             "vehicleIdx": fields[2],
             "otherVehicleIdx": fields[3],
-            "time": fields[4],
+            # uint8 sentinel 255 = not applicable (e.g. a Warning carries no time)
+            "time": fields[4] if fields[4] != 255 else None,
             "lapNum": fields[5],
             "placesGained": fields[6],
         }
