@@ -18,6 +18,11 @@ python main.py --skip-electron
 # Custom host/port
 python main.py --host 0.0.0.0 --port 8000
 
+# Enable session recording (writes to recordings/<timestamp>/)
+python main.py --record
+# Or specify a custom base directory
+python main.py --record /path/to/dir
+
 # MCP server standalone (stdio transport)
 python -m src.mcp.server
 
@@ -151,3 +156,4 @@ On-demand LLM quality gate — **not** part of the normal `pytest` run. Requires
 | `F1_MCP_FIXTURE` | — | Path to a `.bin` fixture file; skips UDP and seeds capture from file instead |
 | `F1_MCP_FIXTURE_FRAME` | — | Frame index to stop replay at (used with `F1_MCP_FIXTURE`) |
 | `F1_MCP_TOOL_LOG` | — | Path to append tool-call JSON lines to on every MCP tool invocation |
+| `F1_RECORD_DIR` | — | Path to the active recording directory; set automatically by `--record` flag. When set, enables the session recorder in both the Flask process and the MCP subprocess. A full race recording is typically 10–70 MB (dominated by raw telemetry). |

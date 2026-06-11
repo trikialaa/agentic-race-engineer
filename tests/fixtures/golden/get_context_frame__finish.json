@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "frame": "unknown",
+    "sessionUID": "unknown"
+  },
   "context": {
     "session": {
       "type": "Race",

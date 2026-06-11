@@ -16,7 +16,6 @@ from pathlib import Path
 from werkzeug.serving import make_server
 
 from src.config import load as load_config
-from src.web import web_transcribe_server
 
 ROOT = Path(__file__).resolve().parent
 
@@ -32,6 +31,7 @@ def _ensure_npm_available() -> str:
 
 def _start_http_server(host: str, port: int):
     """Create and start the Flask server in a background thread."""
+    from src.web import web_transcribe_server  # lazy: env vars must be set before this import
     server = make_server(host, port, web_transcribe_server.app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -75,6 +75,7 @@ def _run_stack(
     electron_cwd: Path,
     skip_electron: bool,
 ) -> int:
+    from src.web import web_transcribe_server  # lazy: env vars must be set before this import
     web_transcribe_server.ensure_agent_ready()
     http_server, server_thread = _start_http_server(host, port)
     _wait_for_server_ready(host, port)
@@ -136,7 +137,24 @@ def main():
         action="store_true",
         help="Only start the Flask server (useful for testing the REST API).",
     )
+    parser.add_argument(
+        "--record",
+        metavar="DIR",
+        nargs="?",
+        const="recordings",
+        default=None,
+        help="Enable session recording. Writes to DIR/<timestamp>/ (default: recordings/).",
+    )
     args = parser.parse_args()
+
+    if args.record is not None:
+        import datetime
+        session_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+        session_dir = Path(args.record) / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["F1_RECORD_DIR"] = str(session_dir)
+        os.environ["F1_MCP_TOOL_LOG"] = str(session_dir / "toolcalls.jsonl")
+        print(f"Recording session to: {session_dir}")
 
     try:
         if not args.skip_electron:

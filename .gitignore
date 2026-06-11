@@ -211,3 +211,6 @@ __marimo__/
 
 # Eval results (per-run, not committed)
 evals/results/*.json
+
+# Session recordings (internal testing, can be large)
+recordings/

@@ -5,12 +5,14 @@ import os
 import queue
 import threading
 import time
+import uuid
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
+from src.observability.session_recorder import build_recorder, is_active
 from src.voice_pipeline.agent import RaceEngineerAgent
 from src.voice_pipeline.stt import STT
 from src.voice_pipeline.tts import TTS
@@ -24,7 +26,15 @@ logging.basicConfig(level=logging.WARN)
 
 stt = STT()
 tts_client = TTS()
-race_engineer_agent = RaceEngineerAgent()
+
+_record_dir = os.environ.get("F1_RECORD_DIR")
+_mcp_env: dict[str, str] | None = None
+if _record_dir:
+    _tool_log = os.environ.get("F1_MCP_TOOL_LOG", str(Path(_record_dir) / "toolcalls.jsonl"))
+    _mcp_env = {"F1_RECORD_DIR": _record_dir, "F1_MCP_TOOL_LOG": _tool_log}
+
+_recorder = build_recorder()
+race_engineer_agent = RaceEngineerAgent(mcp_env=_mcp_env)
 
 # Thread-safe queue: CalloutMonitor pushes callout messages, SSE endpoint drains them.
 callout_queue: queue.Queue = queue.Queue(maxsize=8)
@@ -106,13 +116,41 @@ def transcribe():
         audio_payload, extra_keyterms=race_engineer_agent.get_stt_keyterms()
     )
     stt_latency_ms = round((time.perf_counter() - stt_start) * 1000, 1)
-    return jsonify(
-        {
-            "transcript": transcript,
-            "latency_ms": {"stt": stt_latency_ms},
-            "player": race_engineer_agent.get_player_info(),
-        }
-    )
+
+    turn_id: str | None = None
+    if is_active(_recorder) and transcript:
+        turn_id = str(uuid.uuid4())
+        audio_rel, audio_abs = _recorder.next_turn_audio_path()
+        _recorder.record_turn_audio(audio_abs, audio_payload)
+        context_snapshot: dict = {}
+        frame: int | None = None
+        try:
+            raw_snapshot = run_agent_coroutine(
+                race_engineer_agent._fetch_context_frame(), timeout=2.0
+            )
+            import json as _json
+            context_snapshot = _json.loads(raw_snapshot) if isinstance(raw_snapshot, str) else {}
+            frame = (context_snapshot.get("meta") or {}).get("frame")
+        except Exception:
+            pass
+        _recorder.open_turn(
+            turn_id=turn_id,
+            ts=time.time(),
+            frame=frame,
+            transcript=transcript,
+            stt_ms=stt_latency_ms,
+            audio_path=audio_rel,
+            context_frame=context_snapshot,
+        )
+
+    payload = {
+        "transcript": transcript,
+        "latency_ms": {"stt": stt_latency_ms},
+        "player": race_engineer_agent.get_player_info(),
+    }
+    if turn_id is not None:
+        payload["turn_id"] = turn_id
+    return jsonify(payload)
 
 
 @app.route("/agent", methods=["POST"])
@@ -123,12 +161,15 @@ def agent():
     transcript = (data.get("text") or "").strip()
     if not transcript:
         return jsonify({"error": "Missing 'text' field."}), 400
+    turn_id: str | None = data.get("turn_id") or None
     llm_start = time.perf_counter()
     agent_reply_raw = None
     try:
         agent_reply_raw = get_agent_reply(transcript)
     finally:
         llm_latency_ms = round((time.perf_counter() - llm_start) * 1000, 1)
+    if is_active(_recorder) and turn_id and agent_reply_raw:
+        _recorder.close_turn(turn_id, agent_reply_raw, llm_latency_ms)
     payload: dict = {"latency_ms": {"llm": llm_latency_ms}}
     if agent_reply_raw:
         payload["display_reply"] = agent_reply_raw

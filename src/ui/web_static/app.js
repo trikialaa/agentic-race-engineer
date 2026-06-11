@@ -223,11 +223,14 @@ const MIC_ENHANCEMENT_KEY  = "f1radio-mic-enhancement";
 let mediaRecorder;
 let audioStream;
 let chunks = [];
+let _pttStartTimer = null;
 let micTestBtn = document.getElementById("mic-test-btn");
 let testRecorder = null;
 let testChunks = [];
 let rnnoiseWorkletLoaded = false;
 let rnnoiseNode = null;
+let compressorNode = null;
+let gainNode = null;
 let recordingStream = null;
 
 const sendRecording = async () => {
@@ -256,10 +259,12 @@ const sendRecording = async () => {
     });
     setStatus("Thinking…", true);
 
+    const agentBody = { text: transcript };
+    if (sttPayload.turn_id) agentBody.turn_id = sttPayload.turn_id;
     const agentResp = await fetch("/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: transcript }),
+      body: JSON.stringify(agentBody),
     });
     if (!agentResp.ok) throw new Error("Agent request failed");
     const agentPayload = await agentResp.json();
@@ -278,14 +283,26 @@ const sendRecording = async () => {
 };
 
 const startRecording = () => {
-  if (!mediaRecorder || mediaRecorder.state === "recording") return;
+  if (!mediaRecorder || mediaRecorder.state === "recording" || _pttStartTimer) return;
   chunks = [];
-  mediaRecorder.start();
   recordBtn.classList.add("recording");
   setStatus("Recording…", true);
+  // 120ms delay: lets PTT click/mechanical noise clear before capture starts
+  _pttStartTimer = setTimeout(() => {
+    _pttStartTimer = null;
+    if (mediaRecorder && mediaRecorder.state !== "recording") mediaRecorder.start();
+  }, 120);
 };
 
 const stopRecording = () => {
+  if (_pttStartTimer !== null) {
+    // Released within the delay window — cancel before recording even started
+    clearTimeout(_pttStartTimer);
+    _pttStartTimer = null;
+    recordBtn.classList.remove("recording");
+    setStatus("");
+    return;
+  }
   if (!mediaRecorder || mediaRecorder.state !== "recording") return;
   mediaRecorder.stop();
   recordBtn.classList.remove("recording");
@@ -331,8 +348,10 @@ const setupRNNoise = async (ctx, source) => {
 };
 
 const initRecorder = async (deviceId = "", enhancement = "off") => {
-  // Tear down previous RNNoise node and stream
-  if (rnnoiseNode) { rnnoiseNode.disconnect(); rnnoiseNode = null; }
+  // Tear down previous Web Audio nodes and stream
+  if (rnnoiseNode)    { rnnoiseNode.disconnect();    rnnoiseNode    = null; }
+  if (compressorNode) { compressorNode.disconnect(); compressorNode = null; }
+  if (gainNode)       { gainNode.disconnect();       gainNode       = null; }
   if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
 
   const isStandard = enhancement === "standard";
@@ -348,26 +367,43 @@ const initRecorder = async (deviceId = "", enhancement = "off") => {
   try {
     audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
-    recordingStream = audioStream;
+    // Always route through Web Audio: source → [rnnoise] → compressor → gain → dest
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+    const source = ctx.createMediaStreamSource(audioStream);
+    let chainEnd = source;
 
     if (isAI) {
       try {
-        const ctx = getAudioContext();
-        if (ctx.state === "suspended") await ctx.resume();
-        const source = ctx.createMediaStreamSource(audioStream);
         rnnoiseNode = await setupRNNoise(ctx, source);
-        const dest = ctx.createMediaStreamDestination();
-        rnnoiseNode.connect(dest);
-        recordingStream = dest.stream;
+        chainEnd = rnnoiseNode;
       } catch (err) {
         console.warn("RNNoise failed, falling back to raw audio:", err);
         rnnoiseNode = null;
       }
     }
 
+    // Compressor: brings up quiet/distant-mic voice, levels out dynamics
+    compressorNode = ctx.createDynamicsCompressor();
+    compressorNode.threshold.value = -40;  // compress anything above -40 dBFS
+    compressorNode.knee.value      = 8;    // soft knee for natural sound
+    compressorNode.ratio.value     = 6;    // 6:1 — strong enough for quiet mics
+    compressorNode.attack.value    = 0.003; // 3ms — catches consonants without pumping
+    compressorNode.release.value   = 0.20;  // 200ms
+
+    // Makeup gain: pushes compressed voice up to ~-18 dBFS target
+    gainNode = ctx.createGain();
+    gainNode.gain.value = 8.0;  // +18 dB
+
+    const dest = ctx.createMediaStreamDestination();
+    chainEnd.connect(compressorNode);
+    compressorNode.connect(gainNode);
+    gainNode.connect(dest);
+    recordingStream = dest.stream;
+
     mediaRecorder = new MediaRecorder(recordingStream, {
       mimeType: "audio/webm;codecs=opus",
-      audioBitsPerSecond: 32000,
+      audioBitsPerSecond: 64000,  // bumped from 32kbps — more headroom for quiet voice
     });
     mediaRecorder.addEventListener("dataavailable", (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data);

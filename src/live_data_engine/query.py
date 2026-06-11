@@ -509,14 +509,14 @@ class RaceStateView:
         if damage_data and car_index < len(damage_data):
             dmg = damage_data[car_index]
             damage = {
-                "tyreWear": dmg.get("m_tyresWear", [0, 0, 0, 0]),
+                "tyreWear": dmg.get("tyresWear", [0, 0, 0, 0]),
                 "frontWingDamage": [
-                    dmg.get("m_frontLeftWingDamage", 0),
-                    dmg.get("m_frontRightWingDamage", 0),
+                    dmg.get("frontLeftWingDamage", 0),
+                    dmg.get("frontRightWingDamage", 0),
                 ],
-                "rearWingDamage": dmg.get("m_rearWingDamage", 0),
-                "floorDamage": dmg.get("m_floorDamage", 0),
-                "diffuserDamage": dmg.get("m_diffuserDamage", 0),
+                "rearWingDamage": dmg.get("rearWingDamage", 0),
+                "floorDamage": dmg.get("floorDamage", 0),
+                "diffuserDamage": dmg.get("diffuserDamage", 0),
             }
 
         return {
@@ -657,15 +657,15 @@ class RaceStateView:
         dmg = dmg_data[car_index] if car_index < len(dmg_data) else {}
         return {
             "carIndex": car_index,
-            "tyreWear": dmg.get("m_tyresWear"),
+            "tyreWear": dmg.get("tyresWear"),
             "frontWingDamage": [
-                dmg.get("m_frontLeftWingDamage"),
-                dmg.get("m_frontRightWingDamage"),
+                dmg.get("frontLeftWingDamage"),
+                dmg.get("frontRightWingDamage"),
             ],
-            "rearWingDamage": dmg.get("m_rearWingDamage"),
-            "floorDamage": dmg.get("m_floorDamage"),
-            "diffuserDamage": dmg.get("m_diffuserDamage"),
-            "drsFault": dmg.get("m_drsFault"),
+            "rearWingDamage": dmg.get("rearWingDamage"),
+            "floorDamage": dmg.get("floorDamage"),
+            "diffuserDamage": dmg.get("diffuserDamage"),
+            "drsFault": dmg.get("drsFault"),
         }
 
     def get_capture_stats(self) -> dict[str, Any]:

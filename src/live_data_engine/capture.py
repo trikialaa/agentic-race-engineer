@@ -76,6 +76,7 @@ class F1TelemetryCapture:
         self.last_header: dict[str, Any] | None = None
         self.last_error: str | None = None
         self.format_mismatch: int | None = None
+        self._packet_sink = None  # optional callable(raw_bytes, ts, frame, packet_id)
 
         self.player_car_index = 0
         self.last_update = time.time()
@@ -331,6 +332,10 @@ class F1TelemetryCapture:
             self.thread.join(timeout=1.0)
         logger.info("Stopped F1 telemetry capture")
 
+    def set_packet_sink(self, fn) -> None:
+        """Register a callable(raw_bytes, ts, frame, packet_id) called for every received packet."""
+        self._packet_sink = fn
+
     def _capture_loop(self):
         """Main capture loop running in background thread"""
         try:
@@ -346,6 +351,16 @@ class F1TelemetryCapture:
                     # Parse header
                     hdr = PacketHeader.from_buf(buf)
                     pid = hdr.m_packetId
+                    if self._packet_sink is not None:
+                        try:
+                            self._packet_sink(
+                                bytes(data),
+                                time.time(),
+                                getattr(hdr, "m_frameIdentifier", None),
+                                pid,
+                            )
+                        except Exception:
+                            pass
                     if hdr.m_packetFormat != 2025 and self.format_mismatch != hdr.m_packetFormat:
                         self.format_mismatch = hdr.m_packetFormat
                         logger.warning(

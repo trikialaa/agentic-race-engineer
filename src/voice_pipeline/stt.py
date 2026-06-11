@@ -37,7 +37,20 @@ STATIC_KEYTERMS: list[str] = [
     "fuel saving",
     "brake bias",
     "radio check",
-    "lap"
+    "lap",
+    # Damage / car parts
+    "floor",
+    "front wing",
+    "rear wing",
+    "wing",
+    "diffuser",
+    # Race calls
+    "box",
+    "box box",
+    "race engineer",
+    "chequered flag",
+    "undercut",
+    "gap to",
     # Surnames (unique / phonetically tricky)
     "Verstappen",
     "Norris",

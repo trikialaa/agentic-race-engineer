@@ -77,6 +77,12 @@ def main():
         replay_fixture_into(telemetry_capture, Path(fixture_path), frame=frame)
         logger.info("MCP server running in fixture-replay mode: %s frame=%s", fixture_path, frame)
     else:
+        record_dir = os.getenv("F1_RECORD_DIR")
+        if record_dir:
+            from src.observability.session_recorder import SessionRecorder
+            _recorder = SessionRecorder(Path(record_dir))
+            _recorder.write_meta()
+            telemetry_capture.set_packet_sink(_recorder.record_packet)
         telemetry_capture.start_capture()
 
     try:
