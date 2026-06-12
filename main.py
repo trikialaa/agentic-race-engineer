@@ -149,7 +149,7 @@ def main():
 
     if args.record is not None:
         import datetime
-        session_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+        session_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
         session_dir = Path(args.record) / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
         os.environ["F1_RECORD_DIR"] = str(session_dir)

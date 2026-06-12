@@ -2,12 +2,10 @@
 
 import json
 import struct
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from src.live_data_engine.fixture_replay import replay_fixture_into
 from src.observability.session_recorder import (
     SessionRecorder,
     _NoopRecorder,
@@ -80,11 +78,6 @@ def test_record_packet_writes_length_prefixed_bin(rec, tmp_path):
 
 def test_telemetry_bin_reloadable_by_fixture_replay(rec, tmp_path):
     """telemetry.bin written by recorder must be readable by replay_fixture_into."""
-    from tests.helpers import load_capture_to
-
-    # Capture a few real packets via the production decode path
-    capture = load_capture_to(frame=200)
-
     # Simulate what the packet sink would write
     session_dir = tmp_path / "session"
     for i in range(5):

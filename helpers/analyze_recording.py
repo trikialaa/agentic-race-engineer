@@ -225,7 +225,7 @@ def main():
         print(f"No interactions.jsonl found in {rec_dir}", file=sys.stderr)
         sys.exit(1)
 
-    turns = [json.loads(l) for l in interactions_path.read_text().splitlines() if l.strip()]
+    turns = [json.loads(line) for line in interactions_path.read_text().splitlines() if line.strip()]
     plots_dir = rec_dir / "plots"
     if args.plots:
         plots_dir.mkdir(exist_ok=True)
@@ -252,7 +252,6 @@ def main():
         response = turn.get("response", "")
         stt_ms = turn.get("stt_ms")
         llm_ms = turn.get("llm_ms")
-        frame = turn.get("frame")
 
         try:
             pcm, sr = decode_webm(audio_path)
@@ -316,7 +315,7 @@ def main():
 
     # Summary
     print(f"{'='*80}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*80}")
     valid = [m for m in all_metrics if not m.get("empty")]
     if valid:
