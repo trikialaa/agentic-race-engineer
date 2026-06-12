@@ -206,10 +206,12 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
     last_hdr = capture.last_header or {}
     result = {
         "time": _clock_now(),
-        "meta": _strip_nulls({
-            "frame": last_hdr.get("frame"),
-            "sessionUID": last_hdr.get("sessionUID"),
-        }),
+        "meta": _strip_nulls(
+            {
+                "frame": last_hdr.get("frame"),
+                "sessionUID": last_hdr.get("sessionUID"),
+            }
+        ),
         "context": {
             "session": {
                 "type": session.get("sessionTypeName"),

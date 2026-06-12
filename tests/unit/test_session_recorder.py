@@ -63,7 +63,7 @@ def test_noop_recorder_all_methods_safe():
 
 
 def test_record_packet_writes_length_prefixed_bin(rec, tmp_path):
-    payload = b"\xAB\xCD" * 32
+    payload = b"\xab\xcd" * 32
     rec.record_packet(payload, 1000.0, 42, 6)
     rec.close()
 
@@ -90,6 +90,7 @@ def test_telemetry_bin_reloadable_by_fixture_replay(rec, tmp_path):
 
     # The file can be opened and iterated by the same reader fixture_replay uses
     from src.live_data_engine.fixture_replay import _read_packets
+
     packets = _read_packets(bin_path)
     assert len(packets) == 5
 
@@ -156,11 +157,11 @@ def test_close_unknown_turn_id_is_silent(rec):
 
 def test_audio_blob_saved(rec, tmp_path):
     audio_rel, audio_abs = rec.next_turn_audio_path()
-    rec.record_turn_audio(audio_abs, b"\xFF\xFB\x90" * 100)
+    rec.record_turn_audio(audio_abs, b"\xff\xfb\x90" * 100)
     rec.close()
 
     assert audio_abs.exists()
-    assert audio_abs.read_bytes() == b"\xFF\xFB\x90" * 100
+    assert audio_abs.read_bytes() == b"\xff\xfb\x90" * 100
     assert audio_rel.startswith("audio/")
 
 

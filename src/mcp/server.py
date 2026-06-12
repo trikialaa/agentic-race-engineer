@@ -80,6 +80,7 @@ def main():
         record_dir = os.getenv("F1_RECORD_DIR")
         if record_dir:
             from src.observability.session_recorder import SessionRecorder
+
             _recorder = SessionRecorder(Path(record_dir))
             _recorder.write_meta()
             telemetry_capture.set_packet_sink(_recorder.record_packet)

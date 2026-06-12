@@ -32,6 +32,7 @@ def _ensure_npm_available() -> str:
 def _start_http_server(host: str, port: int):
     """Create and start the Flask server in a background thread."""
     from src.web import web_transcribe_server  # lazy: env vars must be set before this import
+
     server = make_server(host, port, web_transcribe_server.app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -76,6 +77,7 @@ def _run_stack(
     skip_electron: bool,
 ) -> int:
     from src.web import web_transcribe_server  # lazy: env vars must be set before this import
+
     web_transcribe_server.ensure_agent_ready()
     http_server, server_thread = _start_http_server(host, port)
     _wait_for_server_ready(host, port)
@@ -149,6 +151,7 @@ def main():
 
     if args.record is not None:
         import datetime
+
         session_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
         session_dir = Path(args.record) / session_id
         session_dir.mkdir(parents=True, exist_ok=True)

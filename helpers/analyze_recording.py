@@ -53,7 +53,7 @@ def analyze_audio(pcm: np.ndarray, sr: int) -> dict:
     duration = len(pcm) / sr
 
     # RMS energy (overall loudness, -inf to 0 dBFS)
-    rms = float(np.sqrt(np.mean(pcm ** 2)))
+    rms = float(np.sqrt(np.mean(pcm**2)))
     rms_db = float(20 * np.log10(rms + 1e-9))
 
     # Peak amplitude
@@ -61,8 +61,8 @@ def analyze_audio(pcm: np.ndarray, sr: int) -> dict:
     peak_db = float(20 * np.log10(peak + 1e-9))
 
     # Frame-level RMS to find silence / low-energy regions
-    frame_len = int(sr * 0.025)   # 25ms frames
-    hop_len   = int(sr * 0.010)   # 10ms hop
+    frame_len = int(sr * 0.025)  # 25ms frames
+    hop_len = int(sr * 0.010)  # 10ms hop
     rms_frames = librosa.feature.rms(y=pcm, frame_length=frame_len, hop_length=hop_len)[0]
     rms_frames_db = 20 * np.log10(rms_frames + 1e-9)
 
@@ -71,10 +71,16 @@ def analyze_audio(pcm: np.ndarray, sr: int) -> dict:
 
     # Leading silence — how long before first voiced frame
     voiced_frames = np.where(rms_frames_db > silence_threshold_db)[0]
-    leading_silence_s = float(voiced_frames[0] * hop_len / sr) if len(voiced_frames) > 0 else duration
+    leading_silence_s = (
+        float(voiced_frames[0] * hop_len / sr) if len(voiced_frames) > 0 else duration
+    )
 
     # Trailing silence
-    trailing_silence_s = float((len(rms_frames) - voiced_frames[-1] - 1) * hop_len / sr) if len(voiced_frames) > 0 else 0.0
+    trailing_silence_s = (
+        float((len(rms_frames) - voiced_frames[-1] - 1) * hop_len / sr)
+        if len(voiced_frames) > 0
+        else 0.0
+    )
 
     # Spectral centroid — where most energy sits (Hz); voice is 300–3000 Hz
     centroid = librosa.feature.spectral_centroid(y=pcm, sr=sr)[0]
@@ -86,7 +92,7 @@ def analyze_audio(pcm: np.ndarray, sr: int) -> dict:
 
     # SNR estimate: voiced-frame RMS vs silence-frame RMS
     voiced_rms = rms_frames[rms_frames_db > silence_threshold_db]
-    silent_rms  = rms_frames[rms_frames_db <= silence_threshold_db]
+    silent_rms = rms_frames[rms_frames_db <= silence_threshold_db]
     snr_db: float | None = None
     if len(voiced_rms) > 0 and len(silent_rms) > 0:
         snr_db = float(20 * np.log10((voiced_rms.mean() + 1e-9) / (silent_rms.mean() + 1e-9)))
@@ -118,17 +124,27 @@ def quality_flags(metrics: dict) -> list[str]:
     if metrics["duration_s"] < 0.5:
         flags.append(f"TOO SHORT ({metrics['duration_s']:.2f}s)")
     if metrics["leading_silence_s"] > 0.15:
-        flags.append(f"LEADING SILENCE {metrics['leading_silence_s']*1000:.0f}ms — first word likely clipped")
+        flags.append(
+            f"LEADING SILENCE {metrics['leading_silence_s'] * 1000:.0f}ms — first word likely clipped"
+        )
     if metrics["rms_db"] < -30:
-        flags.append(f"LOW VOLUME ({metrics['rms_db']:.0f} dBFS) — may be below Deepgram noise floor")
+        flags.append(
+            f"LOW VOLUME ({metrics['rms_db']:.0f} dBFS) — may be below Deepgram noise floor"
+        )
     if metrics["silence_ratio"] > 0.40:
-        flags.append(f"HIGH SILENCE RATIO ({metrics['silence_ratio']*100:.0f}%) — background noise or gaps")
+        flags.append(
+            f"HIGH SILENCE RATIO ({metrics['silence_ratio'] * 100:.0f}%) — background noise or gaps"
+        )
     if metrics["snr_db"] is not None and metrics["snr_db"] < 12:
         flags.append(f"LOW SNR ({metrics['snr_db']:.0f} dB) — background noise masking voice")
     if metrics["mean_centroid_hz"] < 400:
-        flags.append(f"LOW SPECTRAL CENTROID ({metrics['mean_centroid_hz']:.0f} Hz) — engine/crowd noise dominating")
+        flags.append(
+            f"LOW SPECTRAL CENTROID ({metrics['mean_centroid_hz']:.0f} Hz) — engine/crowd noise dominating"
+        )
     if metrics["clip_ratio"] > 0.001:
-        flags.append(f"CLIPPING ({metrics['clip_ratio']*100:.2f}% of samples) — audio too loud/distorted")
+        flags.append(
+            f"CLIPPING ({metrics['clip_ratio'] * 100:.2f}% of samples) — audio too loud/distorted"
+        )
     return flags
 
 
@@ -138,8 +154,10 @@ def quality_flags(metrics: dict) -> list[str]:
 def retranscribe(audio_path: Path, keyterms: list[str]) -> tuple[str | None, float | None, list]:
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
         from deepgram import DeepgramClient
+
         client = DeepgramClient()
         model = os.getenv("DEEPGRAM_MODEL", "nova-3")
         resp = client.listen.v1.media.transcribe_file(
@@ -163,6 +181,7 @@ def retranscribe(audio_path: Path, keyterms: list[str]) -> tuple[str | None, flo
 def save_plot(turn_num: int, pcm: np.ndarray, metrics: dict, out_dir: Path, transcript: str):
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -185,18 +204,28 @@ def save_plot(turn_num: int, pcm: np.ndarray, metrics: dict, out_dir: Path, tran
 
         # RMS energy over time
         axes[1].plot(t_rms, rms_db, color="darkorange", linewidth=0.8)
-        axes[1].axhline(-40, color="red", linewidth=0.8, linestyle="--", label="-40dB silence threshold")
+        axes[1].axhline(
+            -40, color="red", linewidth=0.8, linestyle="--", label="-40dB silence threshold"
+        )
         axes[1].set_ylabel("RMS (dBFS)")
         axes[1].set_ylim(-80, 5)
         axes[1].legend(fontsize=7)
 
         # Spectrogram
-        D = librosa.amplitude_to_db(np.abs(librosa.stft(pcm, n_fft=1024, hop_length=hop_len)), ref=np.max)
-        img = librosa.display.specshow(D, sr=sr, hop_length=hop_len, x_axis="time", y_axis="hz", ax=axes[2])
+        D = librosa.amplitude_to_db(
+            np.abs(librosa.stft(pcm, n_fft=1024, hop_length=hop_len)), ref=np.max
+        )
+        img = librosa.display.specshow(
+            D, sr=sr, hop_length=hop_len, x_axis="time", y_axis="hz", ax=axes[2]
+        )
         axes[2].set_ylim(0, 8000)
         axes[2].set_ylabel("Frequency (Hz)")
-        axes[2].axhline(300, color="lime", linewidth=0.6, linestyle="--", alpha=0.7, label="voice band 300Hz")
-        axes[2].axhline(3000, color="lime", linewidth=0.6, linestyle="--", alpha=0.7, label="voice band 3kHz")
+        axes[2].axhline(
+            300, color="lime", linewidth=0.6, linestyle="--", alpha=0.7, label="voice band 300Hz"
+        )
+        axes[2].axhline(
+            3000, color="lime", linewidth=0.6, linestyle="--", alpha=0.7, label="voice band 3kHz"
+        )
         axes[2].legend(fontsize=7)
         fig.colorbar(img, ax=axes[2], format="%+2.0f dB")
 
@@ -214,9 +243,15 @@ def save_plot(turn_num: int, pcm: np.ndarray, metrics: dict, out_dir: Path, tran
 def main():
     parser = argparse.ArgumentParser(description="Analyze a session recording directory.")
     parser.add_argument("recording_dir", type=Path)
-    parser.add_argument("--plots", action="store_true", help="Save waveform/spectrogram plots as PNG")
-    parser.add_argument("--retranscribe", action="store_true", help="Re-run Deepgram on each audio file")
-    parser.add_argument("--only-flagged", action="store_true", help="Only show turns with quality issues")
+    parser.add_argument(
+        "--plots", action="store_true", help="Save waveform/spectrogram plots as PNG"
+    )
+    parser.add_argument(
+        "--retranscribe", action="store_true", help="Re-run Deepgram on each audio file"
+    )
+    parser.add_argument(
+        "--only-flagged", action="store_true", help="Only show turns with quality issues"
+    )
     args = parser.parse_args()
 
     rec_dir = args.recording_dir
@@ -225,7 +260,9 @@ def main():
         print(f"No interactions.jsonl found in {rec_dir}", file=sys.stderr)
         sys.exit(1)
 
-    turns = [json.loads(line) for line in interactions_path.read_text().splitlines() if line.strip()]
+    turns = [
+        json.loads(line) for line in interactions_path.read_text().splitlines() if line.strip()
+    ]
     plots_dir = rec_dir / "plots"
     if args.plots:
         plots_dir.mkdir(exist_ok=True)
@@ -234,13 +271,14 @@ def main():
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from src.voice_pipeline.stt import STATIC_KEYTERMS
+
         keyterms = STATIC_KEYTERMS
     except Exception:
         pass
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Recording: {rec_dir.name}   ({len(turns)} turns)")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     summary_flags: list[tuple[int, list[str]]] = []
     all_metrics: list[dict] = []
@@ -284,14 +322,16 @@ def main():
 
         rms_str = f"{rms:.0f}dBFS" if rms is not None else "?"
         snr_str = f"SNR {snr:.0f}dB" if snr is not None else "SNR ?"
-        lead_str = f"lead {lead*1000:.0f}ms"
+        lead_str = f"lead {lead * 1000:.0f}ms"
         cent_str = f"centroid {centroid:.0f}Hz" if centroid is not None else ""
 
         match_marker = ""
         if retrans is not None:
             match_marker = " ✓" if retrans == transcript else " ✗"
 
-        print(f"Turn {turn_num:02d} | {audio_path.name} | {dur:.2f}s | {rms_str} | {snr_str} | {lead_str} | {cent_str}")
+        print(
+            f"Turn {turn_num:02d} | {audio_path.name} | {dur:.2f}s | {rms_str} | {snr_str} | {lead_str} | {cent_str}"
+        )
         print(f"  Stored  : {transcript!r}")
         if args.retranscribe:
             print(f"  Retrans : {retrans!r}{match_marker} (conf={retrans_conf})")
@@ -314,22 +354,28 @@ def main():
         print()
 
     # Summary
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print("SUMMARY")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     valid = [m for m in all_metrics if not m.get("empty")]
     if valid:
         durations = [m["duration_s"] for m in valid]
         rms_vals = [m["rms_db"] for m in valid if m.get("rms_db") is not None]
         snr_vals = [m["snr_db"] for m in valid if m.get("snr_db") is not None]
         leads = [m["leading_silence_s"] for m in valid]
-        print(f"Duration   : avg {np.mean(durations):.2f}s  min {min(durations):.2f}s  max {max(durations):.2f}s")
+        print(
+            f"Duration   : avg {np.mean(durations):.2f}s  min {min(durations):.2f}s  max {max(durations):.2f}s"
+        )
         if rms_vals:
-            print(f"RMS volume : avg {np.mean(rms_vals):.1f} dBFS  min {min(rms_vals):.1f}  max {max(rms_vals):.1f}")
+            print(
+                f"RMS volume : avg {np.mean(rms_vals):.1f} dBFS  min {min(rms_vals):.1f}  max {max(rms_vals):.1f}"
+            )
         if snr_vals:
-            print(f"SNR        : avg {np.mean(snr_vals):.1f} dB  min {min(snr_vals):.1f}  max {max(snr_vals):.1f}")
+            print(
+                f"SNR        : avg {np.mean(snr_vals):.1f} dB  min {min(snr_vals):.1f}  max {max(snr_vals):.1f}"
+            )
         if leads:
-            print(f"Lead sil.  : avg {np.mean(leads)*1000:.0f}ms  max {max(leads)*1000:.0f}ms")
+            print(f"Lead sil.  : avg {np.mean(leads) * 1000:.0f}ms  max {max(leads) * 1000:.0f}ms")
     print(f"\nTurns with quality flags: {len(summary_flags)}/{len(turns)}")
     for turn_num, flags in summary_flags:
         print(f"  Turn {turn_num:02d}: {' | '.join(flags)}")

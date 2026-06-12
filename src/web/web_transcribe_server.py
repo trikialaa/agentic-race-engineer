@@ -129,6 +129,7 @@ def transcribe():
                 race_engineer_agent._fetch_context_frame(), timeout=2.0
             )
             import json as _json
+
             context_snapshot = _json.loads(raw_snapshot) if isinstance(raw_snapshot, str) else {}
             frame = (context_snapshot.get("meta") or {}).get("frame")
         except Exception:

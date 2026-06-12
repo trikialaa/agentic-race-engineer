@@ -31,7 +31,9 @@ _PACKET_LEN_FMT = "<H"  # same as helpers/udp_sampler/record.py and fixture_repl
 def _git_sha() -> str | None:
     try:
         return (
-            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL)
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+            )
             .decode()
             .strip()
         )
