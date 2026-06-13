@@ -48,7 +48,7 @@
         },
         "fuel": {
           "status": "nominal",
-          "lapsRemaining": 2.51,
+          "fuelLapsRange": 2.51,
           "deltaLaps": -1.49
         },
         "ersPct": 99.7,

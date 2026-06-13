@@ -267,7 +267,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
                     },
                     "fuel": {
                         "status": "critical" if low_fuel_mode_hard else "nominal",
-                        "lapsRemaining": fuel_laps_out,
+                        "fuelLapsRange": fuel_laps_out,
                         "deltaLaps": fuel_delta_laps,
                     },
                     "ersPct": _round(ers.get("ersPercentage"), 1),

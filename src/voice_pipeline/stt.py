@@ -44,6 +44,9 @@ STATIC_KEYTERMS: list[str] = [
     "rear wing",
     "wing",
     "diffuser",
+    # Common race direction words
+    "front",
+    "behind",
     # Race calls
     "box",
     "box box",
