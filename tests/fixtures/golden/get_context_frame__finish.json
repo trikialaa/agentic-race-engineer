@@ -44,7 +44,12 @@
         "tyre": {
           "compound": "soft",
           "ageLaps": 0,
-          "wearLevel": "low"
+          "wearLevel": "low",
+          "temps": {
+            "frontC": 94.0,
+            "rearC": 90.0,
+            "level": "optimal"
+          }
         },
         "fuel": {
           "status": "nominal",

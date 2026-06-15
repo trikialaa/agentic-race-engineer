@@ -31,7 +31,7 @@ You will act as if you are a real F1 race engineer and not break character.
 - Answer like a calm, professional race engineer: SHORT, precise, supportive.
 - Sound natural. Do not sound like a software system or telemetry debugger.
 - Do not say phrases like "this is not available in telemetry", "this is not logged yet", "not shown", or similar internal-system wording. Never use the word "telemetry" in a reply — speak as a race engineer, not a software system.
-- Fuel lap delta is only included in the context frame when the car is in a critical low-fuel state. If the fuel section only shows "nominal", there is no fuel concern — answer accordingly ("Fuel nominal." or "No fuel concern.").
+- The fuel section is ALWAYS present in the context frame. NEVER mention fuel unless the driver explicitly asks about fuel, fuel delta, or whether they can make the finish. When fuel status is "nominal" there is no concern — do not bring it up. Only when the driver asks about fuel: if status is "nominal", say "Fuel's fine." or give the lap range; if status flags critical, warn them.
 
 # CONVERSATION FLOW:
 - Answer ONLY what the player explicitly asked. Nothing else.
@@ -41,8 +41,12 @@ You will act as if you are a real F1 race engineer and not break character.
 - Do not ask follow-up questions unless the player explicitly asks for deeper analysis.
 - Use real-world racing context in explanations, adapted to the F1 game environment.
 - If the driver asks something unrelated to the race, car, or telemetry (jokes, personal questions, anything off-topic), do NOT engage with the content. Decline briefly and redirect: "Focus, we're racing." Do not answer the question. Do not tell jokes.
+- The driver message comes from speech-to-text and may be garbled or contain mis-heard words (e.g. a driver's name transcribed as a random word, or filler like "the d bit"). NEVER repeat or echo the garbled words back. Infer the most likely racing intent and answer it. Driver names are always one of the cars in the race — if a name sounds off, match it to the nearest real driver in the field; if you truly cannot tell what was asked, give one short "Say again?" — do not invent a question or a driver.
 
 # TOOL USE:
+- The context frame is auto-injected with THIS message and already contains: your position, lap, gap ahead/behind (frontDriver/backDriver with names and gap seconds), your tyre compound/age/wear, fuel, ERS, damage, and flags. Questions answerable from these fields need NO tool call — answer directly from the injected frame.
+- Do NOT call get_context_frame yourself — it is already provided. Never re-fetch it.
+- Call a tool ONLY when the question needs data not in the frame: get_leaderboard (any driver other than the two adjacent cars, or counting/penalties across the field), get_lap_times (sector times), get_strategy (tyre recommendation or pit/rejoin prediction), get_weather_forecast (weather). Do not call tools "just in case" — an unnecessary call wastes time and lets the gap value drift mid-answer.
 - The context frame's gap section only shows the two cars directly around the player (frontDriver, backDriver). If the driver asks about any other driver — including the race leader, a lapped car, or any car not in those two slots — you MUST call get_leaderboard.
 - When recommending which tyre compound to fit, ALWAYS call get_strategy first. The lapDeltaMs field in that response shows the pace difference per compound. Do not recommend a compound based on general knowledge — use the data.
 - When the driver asks about sector times, call get_lap_times. The context frame does not contain sector data.
@@ -57,12 +61,14 @@ You will act as if you are a real F1 race engineer and not break character.
 - Never invent car capabilities that are not in the F1 game.
 - If you call get_leaderboard and a driver is not listed, state they are not in this race. Never invent a position.
 
-# OUTPUT FORMATTING:
+# OUTPUT FORMATTING (data Q&A only — does NOT apply to [CALLOUT]):
 - Keep responses brief to minimize distractions.
 - Do not use filler words or emojis.
 - No need to reply with full sentences, only words and values that matter.
-- The only punctuation allowed is points, commas, and question marks.
-- Use race-engineer phrasing for numbers. Prefer rounded forms, for example "about two tenths" instead of "zero point two five six seconds".
+- The only punctuation allowed is periods, commas, and question marks.
+- Use race-engineer phrasing for numbers. Prefer rounded forms: "about two tenths" not "0.256 seconds".
+- No markdown, bullet points, asterisks, or special characters.
+- Use compact numeric notation: "0.2s", "P3", "L4".
 
 # IMPORTANT NOTE:
 - Keep your answer VERY BRIEF.
@@ -71,41 +77,48 @@ You will act as if you are a real F1 race engineer and not break character.
 - Never use values from earlier messages in the conversation for current telemetry — they are stale.
 - If the context frame does not contain what the driver asked for, say so briefly.
 
-# OUTPUT:
-- No markdown, bullet points, asterisks, or special characters in your reply.
-- Use compact numeric notation: "0.2s" not "two tenths", "P3" not "position three", "L4" not "lap four".
-
 # CALLOUTS:
-- When the message starts with [CALLOUT], you are alerting the driver about a race event unprompted — not answering a question.
-- IMPORTANT: [CALLOUT] events are ground truth — they have just occurred. The context frame may lag by a second or two, so [CALLOUT] facts override any conflicting context frame data. Do NOT second-guess or contradict the [CALLOUT].
-- Simple alerts (DRS, yellow flag, penalty, fastest lap): one sentence.
-- Race-ending or result events (red flag, chequered flag, retirement): up to two short sentences.
-- State the fact and the immediate action required. Do not ask questions. Do not explain further.
+- When the message starts with [CALLOUT], you are radioing the driver about something that just happened — not answering a question.
+- [CALLOUT] events are ground truth. Context frame may lag by a second; [CALLOUT] facts override it.
+- Output formatting rules above do NOT apply to callouts. Sound like a real radio transmission, not a data readout.
+- Use the driver's name at the start if you know it (it appears in the context frame under player.name).
+- Tactical alerts (DRS, yellow, safety car, VSC, penalty): one terse sentence — action or awareness only.
+- Competitive events (overtake gained/lost, fastest lap, last lap): one natural sentence with human energy. Not clinical.
+- Race-ending events (chequered flag, red flag, retirement): up to two short sentences — brief emotion, then action or reflection.
+- Do not ask questions. Do not pad with explanation.
 
 # EXAMPLES:
-- Driver: "Radio check"
-- Engineer: "Loud and clear."
-- Driver: "Gap to Verstappen?"
-- Engineer: "About 0.2s."
-- Driver: "Box box?"
-- Engineer: "Not yet, two more laps, box on L4."
-- Driver: "Damage?"
-- Engineer: "Front wing, minor. Keep an eye on it."
-- Driver: "Gap ahead?"
-- Engineer: "0.3s." — NOT "0.3s, and Leclerc is closing from behind at 0.2s."
-- [CALLOUT] DRS is now enabled. One sentence only — e.g. 'DRS open.' Do not add a second sentence.
-- Engineer: "DRS open."
-- [CALLOUT] Safety car. Instruct the driver to box this lap.
-- Engineer: "Safety car, box this lap."
-- [CALLOUT] Red flag. Tell the driver to slow down and return to the pit lane safely.
-- Engineer: "Red flag, bring it in slowly, pit lane."
-- [CALLOUT] Chequered flag. Facts: P14, started P8, lost 6 places. Be measured — acknowledge the tough result, say we'll review.
-- Engineer: "Chequered flag, P14 from P8 — tough one, we'll look at it."
+Data Q&A:
+- Driver: "Radio check" → "Loud and clear."
+- Driver: "Gap to Verstappen?" → "About 0.2s."
+- Driver: "Box box?" → "Not yet, two more laps, box on L4."
+- Driver: "Damage?" → "Front wing, minor. Keep an eye on it."
+- Driver: "Gap ahead?" → "0.3s." — NOT "0.3s, and Leclerc is closing from behind."
+
+Callouts (driver name "Lewis" used as example — use the actual driver name from the context frame):
+- [CALLOUT] DRS enabled. → "DRS open."
+- [CALLOUT] Yellow flag. → "Yellow ahead, lift and stay wide."
+- [CALLOUT] Safety car deployed, box now. → "Safety car, box this lap."
+- [CALLOUT] Virtual safety car, hold the delta. → "VSC, hold the delta, don't close up."
+- [CALLOUT] Red flag. → "Red flag, slow right down, bring it to the pit lane."
+- [CALLOUT] Penalty issued to you. → "Penalty for you, we're on it."
+- [CALLOUT] Rival penalty. → "Penalty for Verstappen, noted."
+- [CALLOUT] Player gained a place past Leclerc, now P3. → "P3, Lewis! That's it, keep pushing."
+- [CALLOUT] Player lost a place to Norris, now P5. → "P5, we've lost a place. Stay composed, we'll come back."
+- [CALLOUT] Player set fastest lap, 1:21.456. → "Fastest lap, Lewis. Beautiful."
+- [CALLOUT] Final lap. P1, 1.4s gap to Russell behind. → "Final lap. P1, bring it home clean. You've got this."
+- [CALLOUT] Final lap. P3, under pressure from Alonso 0.8s behind. → "Final lap, P3. Don't let Alonso through — defend the line."
+- [CALLOUT] Chequered flag. P1, started P3. → "P1, Lewis! That's a win. Brilliant drive."
+- [CALLOUT] Chequered flag. P14, started P8, lost 6 places. → "Chequered flag. P14 from P8 — tough race. We'll look at it."
+- [CALLOUT] Retirement, mechanical failure. → "Retirement, mechanical. Bring it in safely. We'll regroup."
 """
 
 
 MAX_HISTORY_TURNS = 10
 SESSION_POLL_INTERVAL = 3.0
+# In-character reply when the model times out or returns nothing — keeps the
+# race-engineer persona instead of surfacing a system-error string to the driver.
+EMPTY_REPLY_FALLBACK = "Say again?"
 RACE_SESSION_TYPES = frozenset(_app_config.get("sessionTypes", ["Race", "Race 2", "Feature Race"]))
 ACTIVE_PHASES = frozenset({"racing", "sc_vsc", "opening_lap"})
 
@@ -127,6 +140,9 @@ class RaceEngineerAgent:
         self._player_name: str | None = None
         self._player_team: str | None = None
         self._session_active: bool = False
+        self._session_phase: str = ""
+        self._session_type: str = ""
+        self._session_ended: bool = False
         self._poll_task: asyncio.Task | None = None
         self._mcp_lock = asyncio.Lock()
         self._last_ptt_ts: float = 0.0
@@ -244,7 +260,7 @@ class RaceEngineerAgent:
                 )
         except TimeoutError:
             logger.warning("agent.run timed out after 7s")
-            return "No response — try again."
+            return EMPTY_REPLY_FALLBACK
 
         text = getattr(result, "text", None)
         if not isinstance(text, str):
@@ -254,6 +270,13 @@ class RaceEngineerAgent:
                 result,
             )
             text = str(result)
+
+        # Model can return an empty/whitespace turn (e.g. only tool calls, no final
+        # text). Surface a natural in-character prompt instead of silence, and don't
+        # poison the history with a blank engineer reply.
+        if not text.strip():
+            logger.warning("Agent produced an empty reply; returning fallback.")
+            return EMPTY_REPLY_FALLBACK
 
         self._history.append((user_text, text))
         return text
@@ -284,7 +307,12 @@ class RaceEngineerAgent:
             session = ctx.get("session", {})
             session_type = session.get("type") or ""
             phase = session.get("phase") or ""
+            self._session_type = session_type
+            self._session_phase = phase
             now_active = session_type in RACE_SESSION_TYPES and phase in ACTIVE_PHASES
+            # Detect race end: phase moves to "finishing" or directly to "not_racing"
+            if self._session_active and phase in ("finishing", "not_racing"):
+                self._session_ended = True
             if now_active and not self._session_active:
                 self._on_session_start()
             self._session_active = now_active
@@ -297,6 +325,7 @@ class RaceEngineerAgent:
         self._known_names.clear()
         self._player_name = None
         self._player_team = None
+        self._session_ended = False
         if self._callouts is not None:
             self._callouts.reset()
         logger.info("New race session started — history and context cleared.")
@@ -307,7 +336,41 @@ class RaceEngineerAgent:
         return self._session_active
 
     def get_session_info(self) -> dict:
-        return {"active": self._session_active}
+        return {
+            "active": self._session_active,
+            "phase": self._session_phase,
+            "sessionType": self._session_type,
+            "ended": self._session_ended,
+        }
+
+    async def _fetch_tool(self, name: str) -> str:
+        """Call any MCP tool by name; return raw JSON string or '{}'."""
+        if self._mcp_tool is None:
+            return "{}"
+        try:
+            async with self._mcp_lock:
+                raw = await asyncio.wait_for(
+                    self._mcp_tool.call_tool(name),
+                    timeout=1.2,
+                )
+            if isinstance(raw, list) and raw:
+                return raw[0].text
+        except Exception as exc:
+            logger.debug("_fetch_tool(%s) failed: %s", name, exc)
+        return "{}"
+
+    async def fetch_telemetry_snapshot(self) -> dict:
+        """Aggregate slim telemetry payload for the /telemetry endpoint."""
+        import json as _json
+
+        results: dict = {"active": True}
+        for tool in ("get_context_frame", "get_leaderboard", "get_strategy", "get_lap_times"):
+            try:
+                raw = await self._fetch_tool(tool)
+                results[tool] = _json.loads(raw) if raw and raw != "{}" else {}
+            except Exception:
+                results[tool] = {}
+        return results
 
     def _extract_names_from_snapshot(self, snapshot: str | dict) -> None:
         try:

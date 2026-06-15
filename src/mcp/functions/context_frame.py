@@ -134,6 +134,33 @@ def _player_tyre_wear(capture: F1TelemetryCapture, player_idx: int | None) -> li
     return None
 
 
+def _tyre_temps(surface: Any) -> dict[str, Any] | None:
+    """Summarize a 4-corner surface-temp array [RL, RR, FL, FR] into front/rear
+    averages plus a coarse level. F1 25 slick optimal surface window is roughly
+    85-105C; below is cold (graining/no grip), above is overheating."""
+    if not isinstance(surface, (list, tuple)) or len(surface) < 4:
+        return None
+    vals = [v for v in surface if isinstance(v, (int, float))]
+    if len(vals) < 4:
+        return None
+    rear_avg = (surface[0] + surface[1]) / 2.0
+    front_avg = (surface[2] + surface[3]) / 2.0
+    overall = sum(surface[:4]) / 4.0
+
+    def _level(t: float) -> str:
+        if t >= 105:
+            return "hot"
+        if t < 85:
+            return "cold"
+        return "optimal"
+
+    return {
+        "frontC": _round(front_avg, 0),
+        "rearC": _round(rear_avg, 0),
+        "level": _level(overall),
+    }
+
+
 def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
     mode_data = _presence_mode(capture)
     session = capture.query.get_session_info()
@@ -264,6 +291,7 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
                         "wearLevel": _level_low_medium_high(
                             _round(sum(tyre_wear) / len(tyre_wear), 1) if tyre_wear else None
                         ),
+                        "temps": _tyre_temps(tyres.get("surfaceTemp")),
                     },
                     "fuel": {
                         "status": "critical" if low_fuel_mode_hard else "nominal",
