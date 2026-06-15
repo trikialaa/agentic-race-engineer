@@ -19,6 +19,7 @@ TOOL_FUNCTIONS = [
     "get_weather_forecast",
     "get_strategy",
     "get_recent_events",
+    "get_race_report",
 ]
 
 TOOL_DESCRIPTIONS = {
@@ -61,6 +62,11 @@ TOOL_DESCRIPTIONS = {
         "overtakes, DRS zones, fastest laps, retirements, and race winner. "
         "Each entry includes severity (critical/relevant/informational) and whether it involves the player. "
         "Use when the driver asks what happened, whether a penalty was issued, or to confirm an incident."
+    ),
+    "get_race_report": (
+        "Post-race summary: final classifications with position, grid position, position change, "
+        "best lap time, pit stop count, tyre stints, and notable events (fastest lap, penalties, retirements). "
+        "Only useful after the race ends. Returns available=false if final classification data is not yet received."
     ),
 }
 

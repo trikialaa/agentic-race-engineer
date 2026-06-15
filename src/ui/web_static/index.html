@@ -9,13 +9,12 @@
 <body>
   <div id="app">
 
+    <!-- Persistent header: always visible regardless of active tab -->
     <header id="app-header">
       <span class="app-title">F1 RADIO</span>
-      <span id="session-dot" class="session-dot" title="Race session inactive"></span>
-    </header>
 
-    <section id="radio-section">
-      <button id="record-btn" type="button" disabled>
+      <!-- PTT button lives here so it's always reachable -->
+      <button id="record-btn" type="button" disabled title="Push to talk">
         <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/>
           <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
@@ -23,96 +22,212 @@
           <line x1="8.5" y1="22" x2="15.5" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
-      <p id="record-hint">HOLD <span id="hotkey-label">R</span> OR CLICK</p>
-      <p id="status">Waiting for race session…</p>
+
+      <div class="header-right">
+        <span id="session-dot" class="session-dot" title="Race session inactive"></span>
+        <!-- Tab strip -->
+        <nav id="tab-strip">
+          <button class="tab-btn active" data-tab="config">Config</button>
+          <button class="tab-btn" data-tab="telemetry">Telemetry</button>
+          <button class="tab-btn" data-tab="report">Report</button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Status bar below header -->
+    <div id="status-bar">
+      <span id="record-hint">HOLD <span id="hotkey-label">R</span> OR CLICK</span>
+      <span id="status">Waiting for race session…</span>
+    </div>
+
+    <!-- ── Config tab ──────────────────────────────────────────── -->
+    <section id="tab-config" class="tab-panel active" data-tab="config">
+
+      <div id="config-section">
+        <div class="config-row">
+          <span class="config-label">HOTKEY</span>
+          <div class="config-control">
+            <button id="hotkey-btn" type="button" class="ghost-btn">Rebind</button>
+          </div>
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-udp-port">UDP PORT</label>
+          <input id="cfg-udp-port" class="config-input" type="number" min="1024" max="65535" placeholder="20777">
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-server-port">SERVER PORT</label>
+          <input id="cfg-server-port" class="config-input" type="number" min="1024" max="65535" placeholder="8080">
+        </div>
+
+        <div class="config-row config-row--stacked">
+          <span class="config-label">ACTIVE SESSIONS</span>
+          <div id="cfg-session-types" class="config-checks">
+            <label><input type="checkbox" value="Race"> Grand Prix</label>
+            <label><input type="checkbox" value="Race 2"> Sprint</label>
+            <label><input type="checkbox" value="Feature Race"> Feature Race</label>
+            <label><input type="checkbox" value="Qualifying"> Qualifying</label>
+            <label><input type="checkbox" value="Sprint Shootout"> Sprint Shootout</label>
+            <label><input type="checkbox" value="Practice 1"> Practice</label>
+          </div>
+        </div>
+
+        <div class="config-row">
+          <span class="config-label">OVERLAY SIDE</span>
+          <div class="config-radios">
+            <label><input type="radio" name="overlay-side" value="right"> Right</label>
+            <label><input type="radio" name="overlay-side" value="left"> Left</label>
+          </div>
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-dismiss-speed">DISMISS SPEED</label>
+          <select id="cfg-dismiss-speed" class="config-select">
+            <option value="slow">Slow</option>
+            <option value="normal">Normal</option>
+            <option value="fast">Fast</option>
+          </select>
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-callouts">ENGINEER CALLOUTS</label>
+          <select id="cfg-callouts" class="config-select">
+            <option value="off">Off</option>
+            <option value="critical">Critical only</option>
+            <option value="critical_relevant">Critical + Relevant</option>
+          </select>
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-mic-enhancement">MIC ENHANCEMENT</label>
+          <select id="cfg-mic-enhancement" class="config-select">
+            <option value="off">Off</option>
+            <option value="standard">Noise Reduction</option>
+            <option value="ai">AI Noise Cancellation</option>
+          </select>
+        </div>
+
+        <div class="config-row">
+          <label class="config-label" for="cfg-mic-device">INPUT DEVICE</label>
+          <select id="cfg-mic-device" class="config-select" style="max-width:160px"></select>
+        </div>
+
+        <div class="config-row">
+          <span class="config-label">MIC TEST</span>
+          <button id="mic-test-btn" type="button" class="ghost-btn" disabled>Hold to Test</button>
+        </div>
+      </div>
+
+      <footer id="app-footer">
+        <p class="restart-notice">⚠ UDP port and server port require a restart</p>
+        <button id="save-btn" type="button">Save Settings</button>
+      </footer>
     </section>
 
-    <div class="divider"></div>
+    <!-- ── Telemetry tab ───────────────────────────────────────── -->
+    <section id="tab-telemetry" class="tab-panel" data-tab="telemetry">
 
-    <section id="config-section">
-
-      <div class="config-row">
-        <span class="config-label">HOTKEY</span>
-        <div class="config-control">
-          <button id="hotkey-btn" type="button" class="ghost-btn">Rebind</button>
+      <!-- Live readout strip -->
+      <div id="readout-strip">
+        <div class="readout-item">
+          <span class="readout-label">POS</span>
+          <span class="readout-value" id="ro-position">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">LAP</span>
+          <span class="readout-value" id="ro-lap">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">LAST LAP</span>
+          <span class="readout-value" id="ro-last-lap">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">GAP AHEAD</span>
+          <span class="readout-value" id="ro-gap-ahead">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">GAP BEHIND</span>
+          <span class="readout-value" id="ro-gap-behind">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">TYRE</span>
+          <span class="readout-value" id="ro-tyre">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">FUEL Δ</span>
+          <span class="readout-value" id="ro-fuel">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">ERS</span>
+          <span class="readout-value" id="ro-ers">—</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">FLAG</span>
+          <span class="readout-value" id="ro-flag">—</span>
         </div>
       </div>
 
-      <div class="config-row">
-        <label class="config-label" for="cfg-udp-port">UDP PORT</label>
-        <input id="cfg-udp-port" class="config-input" type="number" min="1024" max="65535" placeholder="20777">
-      </div>
-
-      <div class="config-row">
-        <label class="config-label" for="cfg-server-port">SERVER PORT</label>
-        <input id="cfg-server-port" class="config-input" type="number" min="1024" max="65535" placeholder="8080">
-      </div>
-
-      <div class="config-row config-row--stacked">
-        <span class="config-label">ACTIVE SESSIONS</span>
-        <div id="cfg-session-types" class="config-checks">
-          <label><input type="checkbox" value="Race"> Grand Prix</label>
-          <label><input type="checkbox" value="Race 2"> Sprint</label>
-          <label><input type="checkbox" value="Feature Race"> Feature Race</label>
-          <label><input type="checkbox" value="Qualifying"> Qualifying</label>
-          <label><input type="checkbox" value="Sprint Shootout"> Sprint Shootout</label>
-          <label><input type="checkbox" value="Practice 1"> Practice</label>
+      <!-- Chart grid -->
+      <div id="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">LAP TIMES</div>
+          <div class="chart-wrap"><canvas id="chart-laptimes"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">GAP TO AHEAD / BEHIND</div>
+          <div class="chart-wrap"><canvas id="chart-gap"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">TYRE WEAR (4 CORNERS)</div>
+          <div class="chart-wrap"><canvas id="chart-tyre"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">POSITION BY LAP</div>
+          <div class="chart-wrap"><canvas id="chart-position"></canvas></div>
         </div>
       </div>
 
-      <div class="config-row">
-        <span class="config-label">OVERLAY SIDE</span>
-        <div class="config-radios">
-          <label><input type="radio" name="overlay-side" value="right"> Right</label>
-          <label><input type="radio" name="overlay-side" value="left"> Left</label>
-        </div>
-      </div>
-
-      <div class="config-row">
-        <label class="config-label" for="cfg-dismiss-speed">DISMISS SPEED</label>
-        <select id="cfg-dismiss-speed" class="config-select">
-          <option value="slow">Slow</option>
-          <option value="normal">Normal</option>
-          <option value="fast">Fast</option>
-        </select>
-      </div>
-
-      <div class="config-row">
-        <label class="config-label" for="cfg-callouts">ENGINEER CALLOUTS</label>
-        <select id="cfg-callouts" class="config-select">
-          <option value="off">Off</option>
-          <option value="critical">Critical only</option>
-          <option value="critical_relevant">Critical + Relevant</option>
-        </select>
-      </div>
-
-      <div class="config-row">
-        <label class="config-label" for="cfg-mic-enhancement">MIC ENHANCEMENT</label>
-        <select id="cfg-mic-enhancement" class="config-select">
-          <option value="off">Off</option>
-          <option value="standard">Noise Reduction</option>
-          <option value="ai">AI Noise Cancellation</option>
-        </select>
-      </div>
-
-      <div class="config-row">
-        <label class="config-label" for="cfg-mic-device">INPUT DEVICE</label>
-        <select id="cfg-mic-device" class="config-select" style="max-width:160px"></select>
-      </div>
-
-      <div class="config-row">
-        <span class="config-label">MIC TEST</span>
-        <button id="mic-test-btn" type="button" class="ghost-btn" disabled>Hold to Test</button>
-      </div>
-
+      <div id="telem-no-session">Waiting for race session…</div>
     </section>
 
-    <footer id="app-footer">
-      <p class="restart-notice">⚠ UDP port and server port require a restart</p>
-      <button id="save-btn" type="button">Save Settings</button>
-    </footer>
+    <!-- ── Post-Race Report tab ────────────────────────────────── -->
+    <section id="tab-report" class="tab-panel" data-tab="report">
+      <div id="report-header">
+        <div class="report-title">POST-RACE REPORT</div>
+        <div id="report-session-label" class="report-subtitle"></div>
+      </div>
+
+      <div id="report-player-card" class="report-player-card" style="display:none"></div>
+
+      <div id="report-results-wrap">
+        <table id="report-table" class="report-table" style="display:none">
+          <thead>
+            <tr>
+              <th>POS</th>
+              <th>DRIVER</th>
+              <th>TEAM</th>
+              <th title="Position change from grid">Δ</th>
+              <th>BEST LAP</th>
+              <th>PITS</th>
+              <th>TYRES</th>
+            </tr>
+          </thead>
+          <tbody id="report-table-body"></tbody>
+        </table>
+      </div>
+
+      <div id="report-events-wrap" style="display:none">
+        <div class="section-label">NOTABLE EVENTS</div>
+        <ul id="report-events-list" class="report-events"></ul>
+      </div>
+
+      <div id="report-no-data">Race report not yet available.</div>
+    </section>
 
   </div>
+
+  <script src="vendor/chart.umd.min.js"></script>
   <script src="app.js" type="module"></script>
 </body>
 </html>
