@@ -58,7 +58,7 @@ class TestRDFL:
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "[CALLOUT]" in msg
-        assert "pit" in msg.lower() or "slow" in msg.lower()
+        assert "red flag" in msg.lower()
 
     def test_rdfl_no_question(self):
         agent = _make_agent()
@@ -186,7 +186,7 @@ class TestRTMT:
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "Terminal damage" in msg
-        assert "regroup" in msg.lower() or "reassure" in msg.lower() or "done" in msg.lower()
+        assert "[CALLOUT]" in msg
 
     def test_rival_retirement_contains_reason(self):
         agent = _make_agent()

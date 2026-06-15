@@ -59,11 +59,7 @@ def _extract_damage_levels(ctx: dict) -> dict[str, str]:
 async def _build_rdfl(
     entry: dict, agent: RaceEngineerAgent, monitor: CalloutMonitor | None
 ) -> str | None:
-    return (
-        "[CALLOUT] Red flag. "
-        "Tell the driver to slow right down immediately and return to the pit lane safely. "
-        "One or two short sentences. No questions."
-    )
+    return "[CALLOUT] Red flag. Radio the driver."
 
 
 async def _build_chqf(
@@ -108,11 +104,7 @@ async def _build_chqf(
 
     facts = ", ".join(pos_facts) if pos_facts else "race complete"
     penalty_str = f" Unserved penalties: {'; '.join(penalty_parts)}." if penalty_parts else ""
-    return (
-        f"[CALLOUT] Chequered flag. Facts: {facts}.{penalty_str} "
-        f"{tone} "
-        "Give a brief in-character race-engineer sign-off. One or two short sentences. No questions."
-    )
+    return f"[CALLOUT] Chequered flag. {facts}.{penalty_str} {tone} Radio the driver."
 
 
 async def _build_coll(
@@ -120,7 +112,7 @@ async def _build_coll(
 ) -> str | None:
     involves_player = entry.get("involvesPlayer", False)
     if not involves_player:
-        return "[CALLOUT] Collision nearby. Alert the driver to be aware. One sentence."
+        return "[CALLOUT] Collision nearby. Radio the driver."
 
     ctx = await _call_mcp(agent, "get_context_frame")
     current_levels = _extract_damage_levels(ctx)
@@ -155,15 +147,8 @@ async def _build_rtmt(
     reason = details.get("reasonName", "retirement")
 
     if involves_player:
-        return (
-            f"[CALLOUT] Retirement — {reason}. "
-            "Reassure the driver: acknowledge the retirement, say we'll regroup. "
-            "One or two short sentences. No questions."
-        )
-    return (
-        f"[CALLOUT] Rival retired. Reason: {reason}. "
-        f"Your reply must include the words '{reason}' and briefly note it as an opportunity. One sentence."
-    )
+        return f"[CALLOUT] Retirement, {reason}. Radio the driver."
+    return f"[CALLOUT] Rival retired, {reason}. Radio the driver."
 
 
 async def _build_yelw(
@@ -172,11 +157,8 @@ async def _build_yelw(
     details = entry.get("details", {}) or {}
     immediate = details.get("immediateRisk", False)
     if immediate:
-        return (
-            "[CALLOUT] Yellow flag, immediate risk ahead. "
-            "Warn the driver sharply to lift and be cautious. One sentence."
-        )
-    return "[CALLOUT] Yellow flag. Alert the driver to lift and be cautious. One sentence."
+        return "[CALLOUT] Yellow flag, immediate risk ahead. Radio the driver."
+    return "[CALLOUT] Yellow flag. Radio the driver."
 
 
 async def _build_scar(
@@ -215,20 +197,14 @@ async def _build_pena(
 
     time_str = f" {penalty_time}s" if isinstance(penalty_time, int) and penalty_time > 0 else ""
     if involves_player:
-        return (
-            f"[CALLOUT] Penalty — {penalty_type}{time_str}. "
-            "Inform the driver of their penalty. One sentence."
-        )
-    return (
-        f"[CALLOUT] Rival penalty — {penalty_type}{time_str}. "
-        "Alert the driver briefly. One sentence."
-    )
+        return f"[CALLOUT] Penalty issued to you — {penalty_type}{time_str}. Radio the driver."
+    return f"[CALLOUT] Rival penalty — {penalty_type}{time_str}. Radio the driver."
 
 
 async def _build_drse(
     entry: dict, agent: RaceEngineerAgent, monitor: CalloutMonitor | None
 ) -> str | None:
-    return "[CALLOUT] DRS is now enabled. One sentence only — e.g. 'DRS open.' Do not add a second sentence."
+    return "[CALLOUT] DRS enabled. Radio the driver."
 
 
 async def _build_drsd(
@@ -236,8 +212,8 @@ async def _build_drsd(
 ) -> str | None:
     details = entry.get("details", {}) or {}
     reason = details.get("reasonName", "")
-    reason_str = f" ({reason})" if reason else ""
-    return f"[CALLOUT] DRS disabled{reason_str}. Inform the driver. One sentence."
+    reason_str = f", {reason}" if reason else ""
+    return f"[CALLOUT] DRS disabled{reason_str}. Radio the driver."
 
 
 async def _build_ftlp(
@@ -248,8 +224,74 @@ async def _build_ftlp(
     lap_time = details.get("lapTimeFormatted", "")
     time_str = f" — {lap_time}" if lap_time else ""
     if involves_player:
-        return f"[CALLOUT] Fastest lap{time_str}. Congratulate the driver briefly. One sentence."
-    return f"[CALLOUT] Rival fastest lap{time_str}. Inform the driver. One sentence."
+        return f"[CALLOUT] Player set fastest lap{time_str}. Radio the driver."
+    return f"[CALLOUT] Rival fastest lap{time_str}. Radio the driver."
+
+
+async def _build_ovtk(
+    entry: dict, agent: RaceEngineerAgent, monitor: CalloutMonitor | None
+) -> str | None:
+    details = entry.get("details", {}) or {}
+    overtaking_idx = details.get("overtakingVehicleIdx")
+    being_overtaken_idx = details.get("beingOvertakenVehicleIdx")
+
+    # Use pit status stamped at event-emit time (not live) to avoid racing the pit exit.
+    if entry.get("playerPitStatus", "none") != "none":
+        return None  # Position changes while pitting are not racing overtakes
+
+    ctx = await _call_mcp(agent, "get_context_frame")
+    player_block = ctx.get("context", {}).get("player", {}) or {}
+    player_idx = player_block.get("id")
+    current_pos = player_block.get("position", {}).get("current")
+
+    player_gained = isinstance(player_idx, int) and overtaking_idx == player_idx
+    player_lost = isinstance(player_idx, int) and being_overtaken_idx == player_idx
+
+    if not player_gained and not player_lost:
+        # Involves player index but neither slot matches — suppress to avoid mystery callout
+        return None
+
+    rival_idx = being_overtaken_idx if player_gained else overtaking_idx
+    rival_name: str | None = None
+    if isinstance(rival_idx, int):
+        lb = await _call_mcp(agent, "get_leaderboard")
+        for row in lb.get("leaderboard") or []:
+            if row.get("carIndex") == rival_idx:
+                rival_name = row.get("driver")
+                break
+
+    pos_str = f" now P{current_pos}" if isinstance(current_pos, int) else ""
+
+    if player_gained:
+        rival_str = f" past {rival_name}" if rival_name else ""
+        return f"[CALLOUT] Player gained a place{rival_str},{pos_str}. Radio the driver."
+    else:
+        rival_str = f" to {rival_name}" if rival_name else ""
+        return f"[CALLOUT] Player lost a place{rival_str},{pos_str}. Radio the driver."
+
+
+async def _build_llap(
+    entry: dict, agent: RaceEngineerAgent, monitor: CalloutMonitor | None
+) -> str | None:
+    ctx = await _call_mcp(agent, "get_context_frame")
+    player = ctx.get("context", {}).get("player", {}) or {}
+    pos = player.get("position", {}).get("current")
+    total = player.get("position", {}).get("total")
+    gap_front = player.get("gap", {}).get("frontS")
+    gap_back = player.get("gap", {}).get("backS")
+    front_driver = (player.get("gap", {}).get("frontDriver") or {}).get("name")
+    back_driver = (player.get("gap", {}).get("backDriver") or {}).get("name")
+
+    facts: list[str] = []
+    if isinstance(pos, int):
+        facts.append(f"P{pos}" + (f" of {total}" if isinstance(total, int) else ""))
+    if isinstance(gap_front, (int, float)) and front_driver:
+        facts.append(f"{gap_front:.1f}s to {front_driver} ahead")
+    if isinstance(gap_back, (int, float)) and back_driver:
+        facts.append(f"{gap_back:.1f}s to {back_driver} behind")
+
+    fact_str = ", ".join(facts) if facts else "final lap"
+    return f"[CALLOUT] Final lap. {fact_str}. Radio the driver."
 
 
 async def _build_generic(
@@ -268,9 +310,7 @@ async def _build_generic(
         if isinstance(penalty_time, int) and penalty_time > 0:
             detail_parts.append(f"{penalty_time}s")
     detail_str = f" ({', '.join(detail_parts)})" if detail_parts else ""
-    return (
-        f"[CALLOUT] {event_name}{detail_str}. Alert the driver with one short engineer radio call."
-    )
+    return f"[CALLOUT] {event_name}{detail_str}. Radio the driver."
 
 
 _BUILDERS = {
@@ -284,6 +324,8 @@ _BUILDERS = {
     "DRSE": _build_drse,
     "DRSD": _build_drsd,
     "FTLP": _build_ftlp,
+    "OVTK": _build_ovtk,
+    "LLAP": _build_llap,
 }
 
 
