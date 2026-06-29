@@ -55,7 +55,7 @@ jobs:
       F1_BUFFER_PIT_EVENTS: "100"
       F1_EVENTS_BUFFER: "100"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
