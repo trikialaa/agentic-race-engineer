@@ -21,11 +21,12 @@ _EVENT_COOLDOWNS: dict[str, float] = {
     "RDFL": 120.0,  # Red flag
     "COLL": 45.0,  # Collision
     "PENA": 30.0,  # Penalty issued
-    "OVTK": 30.0,  # Overtake
+    "OVTK": 60.0,  # Overtake — longer cooldown, player-only events are still frequent
     "DRSE": 30.0,  # DRS enabled
     "DRSD": 30.0,  # DRS disabled
     "FTLP": 60.0,  # Fastest lap set
     "RCWN": 60.0,  # Race winner declared
+    "LLAP": 600.0,  # Last lap — fires at most once per race anyway
 }
 _DEFAULT_EVENT_COOLDOWN = 30.0
 _GLOBAL_RATE_LIMIT_S = 20.0  # minimum gap between any two callout messages

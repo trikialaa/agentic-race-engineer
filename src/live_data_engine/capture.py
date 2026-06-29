@@ -147,6 +147,7 @@ class F1TelemetryCapture:
         self._last_lap_num = [0 for _ in range(self.max_cars)]
         self._last_position = [0 for _ in range(self.max_cars)]
         self._last_pit_status = [None for _ in range(self.max_cars)]
+        self._player_last_lap_fired = False  # emit LLAP at most once per session
         self._presence_state = "neither"
         self._presence_reason = "stale_or_no_packets"
         self._presence_candidate_state: str | None = None
@@ -268,12 +269,21 @@ class F1TelemetryCapture:
                     return "critical"
                 return "relevant"
             return "relevant" if nearby else "informational"
-        if code in {"OVTK", "DRSE", "DRSD", "TMPT", "FTLP", "RCWN"}:
+        if code == "DRSE":
+            # DRS opens every lap in every DRS zone — not worth calling out
+            return "informational"
+        if code in {"DRSD", "TMPT", "FTLP", "RCWN"}:
             return (
                 "relevant"
-                if (involves_player or nearby or code in {"DRSE", "DRSD", "RCWN"})
+                if (involves_player or nearby or code in {"DRSD", "RCWN"})
                 else "informational"
             )
+        if code == "OVTK":
+            # Only relevant when the player is directly involved (gaining or losing a position).
+            # Nearby overtakes between other cars are informational — too noisy to call out.
+            return "relevant" if involves_player else "informational"
+        if code == "LLAP":
+            return "relevant"
         if code in {"SSTA", "SEND", "STLG", "LGOT", "DTSV", "SGSV"}:
             return "informational"
         if code == "YELW":
@@ -300,6 +310,17 @@ class F1TelemetryCapture:
             self._event_last_emitted = {
                 k: v for k, v in self._event_last_emitted.items() if v > cutoff
             }
+        # Snapshot pit status at emit time so callout builders see the state when
+        # the event actually happened, not whenever the builder eventually runs.
+        player_pit_status = "none"
+        try:
+            laps = self.data.get("lap_data", {}).get("laps", []) or []
+            pidx = self.player_car_index
+            if 0 <= pidx < len(laps) and isinstance(laps[pidx], dict):
+                raw = laps[pidx].get("pitStatusName", "None") or "None"
+                player_pit_status = raw.strip().lower()
+        except Exception:
+            pass
         entry = {
             "code": code,
             "eventName": event_name,
@@ -308,6 +329,7 @@ class F1TelemetryCapture:
             "ts": now,
             "severity": severity,
             "involvesPlayer": involves_player,
+            "playerPitStatus": player_pit_status,
         }
         if severity in self.classified_events:
             self.classified_events[severity].appendleft(entry)
@@ -782,6 +804,17 @@ class F1TelemetryCapture:
                         history[idx].insert(0, entry)
                         del history[idx][self.buffer_sizes["lap_history"] :]
                         self._last_lap_num[idx] = curr_num
+
+                        # Emit last-lap event for the player
+                        if idx == self.player_car_index and not self._player_last_lap_fired:
+                            total = None
+                            try:
+                                total = int((self.data.get("session") or {}).get("totalLaps") or 0)
+                            except Exception:
+                                pass
+                            if isinstance(total, int) and total > 0 and curr_num == total:
+                                self._player_last_lap_fired = True
+                                self._emit_classified_event_locked("LLAP", "Last Lap", {}, now)
 
                     # Detect position changes
                     try:

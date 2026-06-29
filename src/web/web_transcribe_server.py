@@ -103,6 +103,38 @@ def session_state():
     return jsonify(race_engineer_agent.get_session_info())
 
 
+@app.route("/telemetry", methods=["GET"])
+def telemetry():
+    info = race_engineer_agent.get_session_info()
+    if not info.get("active"):
+        return jsonify({"active": False})
+    try:
+        snapshot = run_agent_coroutine(race_engineer_agent.fetch_telemetry_snapshot(), timeout=3.0)
+        return jsonify({"active": True, "stale": False, **snapshot})
+    except FuturesTimeoutError:
+        return jsonify({"active": True, "stale": True})
+    except Exception:
+        logging.exception("Telemetry fetch failed")
+        return jsonify({"active": True, "stale": True})
+
+
+@app.route("/race-report", methods=["GET"])
+def race_report():
+    if not ensure_agent_ready():
+        return jsonify({"available": False, "error": "agent not ready"}), 503
+    try:
+        raw = run_agent_coroutine(race_engineer_agent._fetch_tool("get_race_report"), timeout=4.0)
+        import json as _json
+
+        data = _json.loads(raw) if isinstance(raw, str) else {}
+        return jsonify(data)
+    except FuturesTimeoutError:
+        return jsonify({"available": False, "error": "timeout"}), 504
+    except Exception:
+        logging.exception("Race report fetch failed")
+        return jsonify({"available": False, "error": "internal error"}), 500
+
+
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
     if not race_engineer_agent.is_session_active():

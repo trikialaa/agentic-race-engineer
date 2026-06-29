@@ -10,6 +10,8 @@ FIXTURE_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "race_catalu
 # Fixtures built from real gameplay recordings (helpers/build_recording_fixtures.py)
 REC_A_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_a.bin"
 REC_B_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_b.bin"
+REC_C_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_c.bin"
+REC_D_BIN = Path(__file__).parent.parent / "tests" / "fixtures" / "rec_session_d.bin"
 
 # Frame indices from tests/fixtures/markers.json
 FRAMES = {
@@ -631,5 +633,203 @@ SCENARIOS: list[Scenario] = [
         rubric="Player is on wet tyres, age 5 laps, wear medium. Context frame has this. "
         "Should report compound (wet), age, and wear level. Must not mention damage — "
         "that is a different topic the driver did not ask about.",
+    ),
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RECORDED SESSION SCENARIOS (real gameplay, rec_session_c — dry race)
+    # Session 20260613_173854: player starts P1, leads/drops to P3, recovers to P1
+    # McLaren, soft → hard, 17-lap race at Catalunya
+    # Fixture: tests/fixtures/rec_session_c.bin
+    # ═══════════════════════════════════════════════════════════════════════════
+    Scenario(
+        id="rec_c_sector_delta",
+        frame_name="rec_c:f9494",
+        frame_override=9494,
+        fixture_bin=REC_C_BIN,
+        driver="What sector am I losing time in?",
+        expect_tools={"get_lap_times"},
+        must_not_include=["not available", "as an AI", "I don't have"],
+        rubric="Must call get_lap_times to retrieve sector data. Player is P3 lap 6/17 on softs. "
+        "Should identify which sector shows the largest gap to best time. Compact, one or two sentences.",
+        max_words=30,
+    ),
+    Scenario(
+        id="rec_c_rejoin_position",
+        frame_name="rec_c:f13866",
+        frame_override=13866,
+        fixture_bin=REC_C_BIN,
+        driver="If I pit now, what will be my rejoining position?",
+        expect_tools={"get_strategy"},
+        must_not_include=["not available", "as an AI", "I don't have", "unknown"],
+        rubric="Must call get_strategy to get rejoinPosition. Player is P3 lap 9/17, 1.78s behind Russell P2. "
+        "Should give a specific rejoining position or say the window is tight. Compact, no invented data.",
+        max_words=25,
+    ),
+    Scenario(
+        id="rec_c_pit_count",
+        frame_name="rec_c:f14182",
+        frame_override=14182,
+        fixture_bin=REC_C_BIN,
+        driver="How many cars have already pitted?",
+        expect_tools={"get_leaderboard"},
+        must_not_include=["not available", "as an AI", "I don't have"],
+        rubric="Must call get_leaderboard to count pitted cars. Player is P3 lap 9/17. "
+        "Should give a specific number (low, early race). Short, direct, in character.",
+        max_words=15,
+    ),
+    Scenario(
+        id="rec_c_gap_to_russell",
+        frame_name="rec_c:f21774",
+        frame_override=21774,
+        fixture_bin=REC_C_BIN,
+        driver="How far is George Russell?",
+        expect_tools=set(),
+        # Player is P1, Russell is P2, gap behind = 0.5s
+        must_include=["0."],
+        must_not_include=["ahead", "in front"],
+        rubric="Player is P1, Russell is 0.5s behind in P2. Context frame has this — no extra tool needed. "
+        "Should give the gap value (around 0.5s). Must not say Russell is ahead. No extra data volunteered.",
+        check_compact=True,
+    ),
+    Scenario(
+        id="rec_c_laps_remaining",
+        frame_name="rec_c:f22303",
+        frame_override=22303,
+        fixture_bin=REC_C_BIN,
+        driver="How many laps are left?",
+        expect_tools=set(),
+        # Lap 14/17 → 3 laps to go
+        must_include=["3"],
+        must_not_include=["not available", "as an AI"],
+        rubric="Lap 14 of 17. Context frame carries this. Should say 3 laps remaining. "
+        "Short, no unsolicited extra info.",
+        max_words=15,
+    ),
+    Scenario(
+        id="rec_c_penalties_check",
+        frame_name="rec_c:f25449",
+        frame_override=25449,
+        fixture_bin=REC_C_BIN,
+        driver="Does anyone have any penalties?",
+        expect_tools={"get_leaderboard"},
+        must_not_include=["not available", "as an AI", "I don't have"],
+        rubric="Must call get_leaderboard to check penalties. Player P1 lap 15/17. "
+        "Should confirm no penalties or name who has one. In character, compact.",
+        max_words=20,
+    ),
+    Scenario(
+        id="rec_c_drs_behind",
+        frame_name="rec_c:f25907",
+        frame_override=25907,
+        fixture_bin=REC_C_BIN,
+        driver="How far is George behind me, and does he have access to DRS?",
+        expect_tools=set(),
+        # Russell 0.67s behind — inside 1s DRS window
+        must_include=["0.", "drs"],
+        rubric="Russell is 0.67s behind — within the 1s DRS window. Context frame has the gap. "
+        "Must answer both: gap value AND confirm DRS is available to Russell. Compact.",
+        check_compact=True,
+        max_words=25,
+    ),
+    Scenario(
+        id="rec_c_win_check",
+        frame_name="rec_c:f28562",
+        frame_override=28562,
+        fixture_bin=REC_C_BIN,
+        driver="Am I gonna win this?",
+        expect_tools=set(),
+        # Player P1, lap 17/17 (final lap), Russell 1.0s behind
+        must_not_include=["no", "can't", "won't", "doubt"],
+        rubric="Player is P1 on the final lap with a 1.0s gap back to Russell. "
+        "Agent must not express doubt — should confirm the lead with urgency to keep it clean. "
+        "Bono-style: 'You're P1, keep it clean, bring it home.' Brief, no hedging.",
+        max_words=20,
+    ),
+    Scenario(
+        id="rec_c_gap_behind",
+        frame_name="rec_c:f28787",
+        frame_override=28787,
+        fixture_bin=REC_C_BIN,
+        driver="What about the guy behind me?",
+        expect_tools=set(),
+        # Russell P2, 1.45s behind
+        must_include=["russell", "1."],
+        rubric="Context frame has backDriver=Russell P2, gap=1.45s. Should name Russell and give the gap. "
+        "No extra tool call needed — all data in context frame. Compact, no unsolicited info.",
+        check_compact=True,
+        max_words=20,
+    ),
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RECORDED SESSION SCENARIOS (real gameplay, rec_session_d — regression guards)
+    # Session 20260614_205944: Antonelli/Mercedes P2, chasing Norris, 18-lap dry race.
+    # These pin behaviours that REGRESSED in that session (see analysis):
+    #   - unsolicited "Fuel nominal" prepended to unrelated answers
+    #   - "Can't see tyre temps" when temps are now exposed in the context frame
+    # Fixture: tests/fixtures/rec_session_d.bin
+    # ═══════════════════════════════════════════════════════════════════════════
+    Scenario(
+        id="rec_d_gap_no_fuel_spam",
+        frame_name="rec_d:f1459",
+        frame_override=1459,
+        fixture_bin=REC_D_BIN,
+        driver="How far ahead is the car in front?",
+        expect_tools=set(),
+        # Norris is the frontDriver (P1), gap 2.75s; fuel is nominal (must not be mentioned)
+        must_include=["2."],
+        must_not_include=["fuel", "nominal", "behind"],
+        rubric="Gap ahead is 2.75s to Norris (the adjacent frontDriver — no tool needed). "
+        "Must state the gap ONLY. Must NOT prepend or append any fuel remark — the driver did not ask "
+        "about fuel and fuel status is nominal. Compact notation.",
+        check_compact=True,
+        max_words=15,
+    ),
+    Scenario(
+        id="rec_d_tyre_temps_answerable",
+        frame_name="rec_d:f7848",
+        frame_override=7848,
+        fixture_bin=REC_D_BIN,
+        driver="How are my tyre temps?",
+        expect_tools=set(),
+        # Context frame now carries tyre.temps {frontC, rearC, level}. Must NOT refuse.
+        must_not_include=[
+            "can't see",
+            "cant see",
+            "not on our screen",
+            "no read",
+            "not available",
+            "telemetry",
+            "as an ai",
+            "fuel",
+        ],
+        rubric="Tyre temps ARE now in the context frame (front/rear degrees + a level). "
+        "Agent must report them — front and/or rear temperature, or the level (cold/optimal/hot). "
+        "Must NOT refuse or say it can't see them. Brief, in character.",
+        max_words=25,
+    ),
+    Scenario(
+        id="rec_d_sector_loss",
+        frame_name="rec_d:f8342",
+        frame_override=8342,
+        fixture_bin=REC_D_BIN,
+        driver="Where am I losing time to the car in front?",
+        expect_tools={"get_lap_times"},
+        must_not_include=["fuel", "not available", "as an ai"],
+        rubric="Must call get_lap_times for sector data. Should identify which sector loses the most time. "
+        "Must NOT mention fuel. Compact, one or two clauses.",
+        max_words=30,
+    ),
+    Scenario(
+        id="rec_d_norris_pit_status",
+        frame_name="rec_d:f18512",
+        frame_override=18512,
+        fixture_bin=REC_D_BIN,
+        driver="Has Norris pitted yet?",
+        expect_tools={"get_leaderboard"},
+        must_include=["1"],
+        must_not_include=["fuel", "not available", "as an ai"],
+        rubric="Norris (leader) has numberPitStops=1 and is on medium tyres age 2 — he HAS pitted once. "
+        "Must call get_leaderboard to read his pit/tyre status (the context frame's frontDriver has "
+        "name+position only, no tyre or pit data). Should confirm he has pitted (1 stop). "
+        "Must NOT mention fuel. Compact.",
+        max_words=20,
     ),
 ]

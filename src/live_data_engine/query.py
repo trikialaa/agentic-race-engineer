@@ -743,3 +743,7 @@ class RaceStateView:
     def get_safety_periods(self) -> list[dict[str, Any]]:
         session = self._session_snapshot()
         return session.get("safetyPeriods", [])
+
+    def get_final_classification(self) -> dict[str, Any] | None:
+        with self._cap.lock:
+            return self._cap.data.get("final_classification")

@@ -431,13 +431,33 @@ function createOverlayWindow() {
   overlayWindow.on("closed", () => { overlayWindow = null; });
 }
 
+let _boundsDebounce = null;
+
+const saveBounds = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const bounds = mainWindow.getBounds();
+  saveConfig({ windowBounds: bounds });
+};
+
+const scheduleSaveBounds = () => {
+  if (_boundsDebounce) clearTimeout(_boundsDebounce);
+  _boundsDebounce = setTimeout(saveBounds, 600);
+};
+
 function createWindow() {
   Menu.setApplicationMenu(null);
 
+  const savedConfig = loadConfig();
+  const savedBounds = savedConfig.windowBounds ?? {};
+
   mainWindow = new BrowserWindow({
-    width: 440,
-    height: 640,
-    resizable: false,
+    width:     savedBounds.width  ?? 1100,
+    height:    savedBounds.height ?? 720,
+    x:         savedBounds.x,
+    y:         savedBounds.y,
+    minWidth:  380,
+    minHeight: 560,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -450,7 +470,10 @@ function createWindow() {
 
   const targetUrl = process.env.F1_RADIO_URL || DEFAULT_URL;
   mainWindow.loadURL(targetUrl);
+  mainWindow.on("resize", scheduleSaveBounds);
+  mainWindow.on("move",   scheduleSaveBounds);
   mainWindow.on("closed", () => {
+    saveBounds();
     mainWindow = undefined;
   });
 
