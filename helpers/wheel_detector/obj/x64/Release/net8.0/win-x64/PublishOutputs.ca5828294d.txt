@@ -1,2 +1,0 @@
-C:\Projects\f1_radaio\helpers\wheel_detector\bin\WheelHelper.pdb
-C:\Projects\f1_radaio\helpers\wheel_detector\bin\WheelHelper.exe
