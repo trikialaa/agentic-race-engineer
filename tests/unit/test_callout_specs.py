@@ -278,6 +278,185 @@ class TestFTLP:
         assert "rival" in msg.lower() or "fastest" in msg.lower()
 
 
+class TestYELW:
+    def test_immediate_risk_message(self):
+        agent = _make_agent()
+        entry = _make_entry("YELW", details={"immediateRisk": True})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "immediate" in msg.lower()
+        assert "[CALLOUT]" in msg
+
+    def test_no_immediate_risk(self):
+        agent = _make_agent()
+        entry = _make_entry("YELW", details={"immediateRisk": False})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "yellow" in msg.lower()
+        assert "immediate" not in msg.lower()
+
+    def test_no_details(self):
+        agent = _make_agent()
+        entry = _make_entry("YELW")
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "[CALLOUT]" in msg
+
+
+class TestDRSD:
+    def test_drsd_with_reason(self):
+        agent = _make_agent()
+        entry = _make_entry("DRSD", details={"reasonName": "Crash ahead"})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "Crash ahead" in msg
+        assert "DRS" in msg
+
+    def test_drsd_without_reason(self):
+        agent = _make_agent()
+        entry = _make_entry("DRSD", details={})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "DRS" in msg
+
+
+class TestPENA:
+    def test_player_penalty_with_time(self):
+        agent = _make_agent()
+        entry = _make_entry("PENA", involves_player=True, details={"penaltyTypeName": "Time Penalty", "time": 5})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "5s" in msg
+        assert "[CALLOUT]" in msg
+
+    def test_player_penalty_no_time(self):
+        agent = _make_agent()
+        entry = _make_entry("PENA", involves_player=True, details={"penaltyTypeName": "Drive Through"})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "Drive Through" in msg
+
+    def test_rival_penalty(self):
+        agent = _make_agent()
+        entry = _make_entry("PENA", involves_player=False, details={"penaltyTypeName": "Corner Cutting", "time": 10})
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "Rival" in msg or "rival" in msg
+        assert "10s" in msg
+
+
+class TestOVTK:
+    def _ctx(self, player_id, current_pos=5):
+        return {
+            "context": {
+                "player": {
+                    "id": player_id,
+                    "position": {"current": current_pos},
+                }
+            }
+        }
+
+    def _lb(self, rival_idx, rival_name):
+        return {"leaderboard": [{"carIndex": rival_idx, "driver": rival_name, "isPlayer": False}]}
+
+    def test_player_gained_place(self):
+        ctx = self._ctx(player_id=0, current_pos=4)
+        lb = self._lb(rival_idx=1, rival_name="Verstappen")
+        agent = _make_agent(context_frame=ctx, leaderboard=lb)
+        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
+                 "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1}}
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "gained" in msg.lower()
+        assert "Verstappen" in msg
+
+    def test_player_lost_place(self):
+        ctx = self._ctx(player_id=0, current_pos=6)
+        lb = self._lb(rival_idx=1, rival_name="Hamilton")
+        agent = _make_agent(context_frame=ctx, leaderboard=lb)
+        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
+                 "details": {"overtakingVehicleIdx": 1, "beingOvertakenVehicleIdx": 0}}
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "lost" in msg.lower()
+
+    def test_pitting_suppressed(self):
+        ctx = self._ctx(player_id=0)
+        agent = _make_agent(context_frame=ctx)
+        entry = {**_make_entry("OVTK"), "playerPitStatus": "pitting",
+                 "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1}}
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is None
+
+    def test_neither_slot_player_suppressed(self):
+        ctx = self._ctx(player_id=0)
+        agent = _make_agent(context_frame=ctx)
+        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
+                 "details": {"overtakingVehicleIdx": 3, "beingOvertakenVehicleIdx": 5}}
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is None
+
+
+class TestLLAP:
+    def _ctx(self, pos=2, total=20, gap_front=1.5, gap_back=0.8,
+              front_driver="Hamilton", back_driver="Alonso"):
+        return {
+            "context": {
+                "player": {
+                    "position": {"current": pos, "total": total},
+                    "gap": {
+                        "frontS": gap_front,
+                        "backS": gap_back,
+                        "frontDriver": {"name": front_driver},
+                        "backDriver": {"name": back_driver},
+                    },
+                }
+            }
+        }
+
+    def test_llap_includes_position_and_gaps(self):
+        agent = _make_agent(context_frame=self._ctx())
+        entry = _make_entry("LLAP")
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "[CALLOUT]" in msg
+        assert "P2" in msg
+        assert "Hamilton" in msg
+
+    def test_llap_no_context_still_fires(self):
+        agent = _make_agent(context_frame={})
+        entry = _make_entry("LLAP")
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "final lap" in msg.lower()
+
+
+class TestCallMcpNoTool:
+    def test_no_mcp_tool_returns_empty_dict(self):
+        from src.voice_pipeline.callout_specs import _call_mcp
+        agent = MagicMock()
+        agent._mcp_tool = None
+
+        async def _run():
+            return await _call_mcp(agent, "get_context_frame")
+
+        result = asyncio.run(_run())
+        assert result == {}
+
+
+class TestExtractDamageLevels:
+    def test_missing_key_returns_empty(self):
+        from src.voice_pipeline.callout_specs import _extract_damage_levels
+        assert _extract_damage_levels({}) == {}
+        assert _extract_damage_levels({"context": {}}) == {}
+
+    def test_extracts_damage(self):
+        from src.voice_pipeline.callout_specs import _extract_damage_levels
+        ctx = {"context": {"player": {"car": {"damageByPart": {"frontWing": "medium"}}}}}
+        result = _extract_damage_levels(ctx)
+        assert result == {"frontWing": "medium"}
+
+
 class TestGenericFallback:
     def test_unknown_code_uses_generic(self):
         agent = _make_agent()
@@ -286,3 +465,38 @@ class TestGenericFallback:
         assert msg is not None
         assert "[CALLOUT]" in msg
         assert "Some Event" in msg
+
+    def test_generic_with_penalty_details(self):
+        agent = _make_agent()
+        entry = {
+            "code": "UNKN",
+            "eventName": "Strange Event",
+            "details": {"penaltyTypeName": "Stop Go", "time": 10},
+            "involvesPlayer": True,
+        }
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "Stop Go" in msg
+        assert "10s" in msg
+        assert "involving you" in msg
+
+    def test_chqf_no_position_neutral_tone(self):
+        # When neither current nor start position is available, diff is None → neutral tone
+        ctx = {"context": {"player": {"position": {}, "car": {}}}}
+        agent = _make_agent(context_frame=ctx, leaderboard={})
+        entry = _make_entry("CHQF")
+        msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        assert msg is not None
+        assert "[CALLOUT]" in msg
+
+    def test_builder_exception_falls_back_to_generic(self):
+        from unittest.mock import patch, AsyncMock as AM
+        agent = _make_agent()
+        entry = _make_entry("RDFL")
+        with patch(
+            "src.voice_pipeline.callout_specs._build_rdfl",
+            new=AM(side_effect=RuntimeError("boom")),
+        ):
+            msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
+        # Should fall back to generic, not crash
+        assert msg is not None

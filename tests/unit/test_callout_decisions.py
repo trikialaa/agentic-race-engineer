@@ -132,6 +132,164 @@ class TestPTTSuppression:
         assert not ptt_suppressed
 
 
+class TestCheckMethod:
+    """Tests for CalloutMonitor.check() — MCP call and event selection logic."""
+
+    def _make_mcp_response(self, events: list) -> object:
+        import json
+        from unittest.mock import MagicMock
+
+        obj = MagicMock()
+        obj.text = json.dumps({"events": events})
+        return [obj]
+
+    def _make_event(self, code, severity, ts, involves_player=False):
+        return {
+            "code": code,
+            "eventName": code,
+            "severity": severity,
+            "ts": float(ts),
+            "involvesPlayer": involves_player,
+        }
+
+    def test_check_no_mcp_tool_returns_early(self):
+        import asyncio
+
+        monitor, agent = _make_monitor()
+        agent._mcp_tool = None
+        asyncio.run(monitor.check())  # should not raise
+
+    def test_check_empty_filter_returns_early(self):
+        import asyncio
+        from unittest.mock import patch
+
+        monitor, agent = _make_monitor()
+        with patch("src.config.get", return_value="off"):
+            asyncio.run(monitor.check())
+        assert monitor._queue.empty()
+
+    def test_check_fires_critical_event(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        monitor._event_last_checked_ts = 0.0
+        monitor._last_callout_ts = 0.0
+
+        now = time.time()
+        events = [self._make_event("RDFL", "critical", now - 1.0)]
+        mcp_resp = self._make_mcp_response(events)
+
+        agent._mcp_tool.call_tool = AsyncMock(return_value=mcp_resp)
+        agent.run_callout_async = AsyncMock(return_value="Red flag, stay calm.")
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                with patch(
+                    "src.voice_pipeline.callouts.build_callout_message",
+                    new=AsyncMock(return_value="[CALLOUT] Red flag."),
+                ):
+                    await monitor.check()
+
+        asyncio.run(_run())
+        assert not monitor._queue.empty()
+
+    def test_check_skips_event_within_cooldown(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        monitor._event_last_checked_ts = 0.0
+        monitor._last_callout_ts = 0.0
+        monitor._event_cooldowns["RDFL"] = time.time()  # just fired
+
+        now = time.time()
+        events = [self._make_event("RDFL", "critical", now - 1.0)]
+        mcp_resp = self._make_mcp_response(events)
+        agent._mcp_tool.call_tool = AsyncMock(return_value=mcp_resp)
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                await monitor.check()
+
+        asyncio.run(_run())
+        assert monitor._queue.empty()
+
+    def test_check_skips_event_before_since_ts(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        now = time.time()
+        monitor._event_last_checked_ts = now  # already past this event
+        monitor._last_callout_ts = 0.0
+
+        events = [self._make_event("RDFL", "critical", now - 5.0)]
+        mcp_resp = self._make_mcp_response(events)
+        agent._mcp_tool.call_tool = AsyncMock(return_value=mcp_resp)
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                await monitor.check()
+
+        asyncio.run(_run())
+        assert monitor._queue.empty()
+
+    def test_check_skips_relevant_event_if_ptt_suppressed(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        monitor._event_last_checked_ts = 0.0
+        monitor._last_callout_ts = 0.0
+        agent.last_ptt_ts = time.time()  # just spoke
+
+        now = time.time()
+        events = [self._make_event("FTLP", "relevant", now - 1.0)]
+        mcp_resp = self._make_mcp_response(events)
+        agent._mcp_tool.call_tool = AsyncMock(return_value=mcp_resp)
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                await monitor.check()
+
+        asyncio.run(_run())
+        assert monitor._queue.empty()
+
+    def test_check_mcp_error_does_not_crash(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        agent._mcp_tool.call_tool = AsyncMock(side_effect=RuntimeError("timeout"))
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                await monitor.check()
+
+        asyncio.run(_run())  # should not raise
+
+    def test_check_skips_global_rate_limit(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        monitor, agent = _make_monitor()
+        monitor._event_last_checked_ts = 0.0
+        monitor._last_callout_ts = time.time()  # just fired
+
+        now = time.time()
+        events = [self._make_event("RDFL", "critical", now - 1.0)]
+        mcp_resp = self._make_mcp_response(events)
+        agent._mcp_tool.call_tool = AsyncMock(return_value=mcp_resp)
+
+        async def _run():
+            with patch("src.config.get", return_value="critical_relevant"):
+                await monitor.check()
+
+        asyncio.run(_run())
+        assert monitor._queue.empty()
+
+
 class TestCalloutQueuePayload:
     def test_fire_pushes_correct_shape(self):
         """Fire a callout and verify the queue payload has the right type and fields."""
