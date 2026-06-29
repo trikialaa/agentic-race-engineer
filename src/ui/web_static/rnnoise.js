@@ -1,7 +1,7 @@
 
 var createRNNWasmModule = (() => {
   var _scriptDir = typeof document !== 'undefined' && document.currentScript ? document.currentScript.src : undefined;
-  
+
   return (
 function(createRNNWasmModule) {
   createRNNWasmModule = createRNNWasmModule || {};
