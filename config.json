@@ -15,8 +15,15 @@
     "Practice 1"
   ],
   "ttsVoice": "Alex",
-  "overlayPosition": "right",
+  "overlayPosition": "left",
   "overlayDismissSpeed": "normal",
   "proactiveEvents": "critical_relevant",
-  "engineerCallouts": "critical"
+  "engineerCallouts": "critical_relevant",
+  "radioFx": "medium",
+  "windowBounds": {
+    "x": -1088,
+    "y": -7,
+    "width": 1096,
+    "height": 1888
+  }
 }

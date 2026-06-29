@@ -13,6 +13,9 @@ from pathlib import Path
 
 import requests
 
+from src import config
+from src.voice_pipeline import radio_fx
+
 logger = logging.getLogger(__name__)
 
 INWORLD_API_KEY = os.getenv("INWORLD_API_KEY")
@@ -29,7 +32,7 @@ class TTS:
     CHANNELS = 1
     SAMPLE_WIDTH = 2
     CHUNK_SIZE = 4096
-    INTRO_PATH = Path(__file__).resolve().parents[2] / "assets" / "f1radio.wav"
+    INTRO_PATH = Path(__file__).resolve().parents[2] / "assets" / "walkie_talkie.wav"
 
     def __init__(self):
         if not INWORLD_API_KEY:
@@ -38,17 +41,20 @@ class TTS:
             raise RuntimeError("INWORLD_BASE_URL is not set")
         self.voice_id: str = "Edward"
 
-    def read_text(self, text):
+    def read_text(self, text, radio_preset: str | None = None):
         pcm_bytes = bytearray()
-        for chunk in self.stream_audio(text):
+        for chunk in self.stream_audio(text, radio_preset=radio_preset):
             pcm_bytes.extend(chunk)
         return self._build_wav(pcm_bytes)
 
-    def stream_audio(self, text):
+    def stream_audio(self, text, radio_preset: str | None = None):
         payload = self._build_payload(text)
+        preset = radio_preset if radio_preset is not None else config.get("radioFx", "medium")
 
         def generator():
+            # Intro beep stays dry; only the voice gets the radio coloring.
             yield from self._intro_stream()
+            colorize = radio_fx.make_processor(preset)
             try:
                 with requests.post(
                     INWORLD_BASE_URL, json=payload, headers=headers, stream=True, timeout=(5, 30)
@@ -67,7 +73,7 @@ class TTS:
                         audio_chunk = base64.b64decode(result["audioContent"])
                         trimmed_chunk = self._trim_wave_header(audio_chunk)
                         if trimmed_chunk:
-                            yield trimmed_chunk
+                            yield colorize(trimmed_chunk)
             except Exception:
                 logger.exception("TTS stream failed")
 

@@ -14,6 +14,7 @@ DEFAULTS: dict[str, Any] = {
     "overlayPosition": "right",
     "overlayDismissSpeed": "normal",
     "engineerCallouts": "critical",
+    "radioFx": "medium",
 }
 
 
