@@ -5,7 +5,6 @@
 # Node / Electron
 node_modules
 src/ui/electron
-src/ui/web_static
 
 # Python artifacts
 __pycache__
@@ -14,8 +13,7 @@ __pycache__
 .pytest_cache
 .mypy_cache
 
-# Dev / test assets
-tests
+# Dev / test assets (tests/ is needed by the test stage — not excluded)
 helpers
 docs
 assets
