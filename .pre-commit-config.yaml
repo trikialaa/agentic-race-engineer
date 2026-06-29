@@ -10,8 +10,17 @@ repos:
         args: ["--maxkb=4000"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.10
+    rev: v0.15.17
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (mcp + udp_parser)
+        language: system
+        entry: mypy src/mcp/functions src/udp_parser
+        pass_filenames: false
+        types: [python]
