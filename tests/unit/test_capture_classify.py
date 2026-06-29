@@ -40,10 +40,12 @@ class TestEventVehicleIndices:
         assert 5 in result
 
     def test_overtake_indices_extracted(self):
-        result = _cap()._event_vehicle_indices({
-            "overtakingVehicleIdx": 2,
-            "beingOvertakenVehicleIdx": 7,
-        })
+        result = _cap()._event_vehicle_indices(
+            {
+                "overtakingVehicleIdx": 2,
+                "beingOvertakenVehicleIdx": 7,
+            }
+        )
         assert 2 in result
         assert 7 in result
 
@@ -146,19 +148,31 @@ class TestClassifyEventLocked:
 
     # PENA
     def test_pena_player_drive_through_critical(self):
-        assert self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Drive Through"}) == "critical"
+        assert (
+            self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Drive Through"})
+            == "critical"
+        )
 
     def test_pena_player_stop_go_critical(self):
         assert self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Stop Go"}) == "critical"
 
     def test_pena_player_disqualified_critical(self):
-        assert self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Disqualified"}) == "critical"
+        assert (
+            self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Disqualified"})
+            == "critical"
+        )
 
     def test_pena_player_time_penalty_critical(self):
-        assert self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Other", "time": 5}) == "critical"
+        assert (
+            self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Other", "time": 5})
+            == "critical"
+        )
 
     def test_pena_player_minor_relevant(self):
-        assert self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Corner Cutting"}) == "relevant"
+        assert (
+            self._classify("PENA", {"vehicleIdx": 0, "penaltyTypeName": "Corner Cutting"})
+            == "relevant"
+        )
 
     def test_pena_rival_nearby_relevant(self):
         laps = [{"carPosition": 1}, {"carPosition": 2}]
@@ -199,7 +213,10 @@ class TestClassifyEventLocked:
         assert self._classify("OVTK", {"beingOvertakenVehicleIdx": 0}) == "relevant"
 
     def test_ovtk_other_cars_informational(self):
-        assert self._classify("OVTK", {"overtakingVehicleIdx": 3, "beingOvertakenVehicleIdx": 5}) == "informational"
+        assert (
+            self._classify("OVTK", {"overtakingVehicleIdx": 3, "beingOvertakenVehicleIdx": 5})
+            == "informational"
+        )
 
     # LLAP always relevant
     def test_llap_relevant(self):
@@ -207,10 +224,15 @@ class TestClassifyEventLocked:
 
     # YELW
     def test_yelw_player_immediate_critical(self):
-        assert self._classify("YELW", {"localPlayerYellow": True, "immediateRisk": True}) == "critical"
+        assert (
+            self._classify("YELW", {"localPlayerYellow": True, "immediateRisk": True}) == "critical"
+        )
 
     def test_yelw_player_no_immediate_relevant(self):
-        assert self._classify("YELW", {"localPlayerYellow": True, "immediateRisk": False}) == "relevant"
+        assert (
+            self._classify("YELW", {"localPlayerYellow": True, "immediateRisk": False})
+            == "relevant"
+        )
 
     def test_yelw_not_player_informational(self):
         assert self._classify("YELW", {"localPlayerYellow": False}) == "informational"
