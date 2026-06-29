@@ -214,3 +214,14 @@ evals/results/*.json
 
 # Session recordings (internal testing, can be large)
 recordings/
+
+# C# wheel helper build artifacts
+helpers/wheel_detector/obj/
+helpers/wheel_detector/bin/WheelHelper.deps.json
+helpers/wheel_detector/bin/WheelHelper.runtimeconfig.json
+helpers/wheel_detector/bin/**/WheelHelper.deps.json
+helpers/wheel_detector/bin/**/WheelHelper.runtimeconfig.json
+
+# Runtime/user-specific config (not for version control)
+config.json
+.claude/
