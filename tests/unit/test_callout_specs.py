@@ -323,7 +323,9 @@ class TestDRSD:
 class TestPENA:
     def test_player_penalty_with_time(self):
         agent = _make_agent()
-        entry = _make_entry("PENA", involves_player=True, details={"penaltyTypeName": "Time Penalty", "time": 5})
+        entry = _make_entry(
+            "PENA", involves_player=True, details={"penaltyTypeName": "Time Penalty", "time": 5}
+        )
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "5s" in msg
@@ -331,14 +333,18 @@ class TestPENA:
 
     def test_player_penalty_no_time(self):
         agent = _make_agent()
-        entry = _make_entry("PENA", involves_player=True, details={"penaltyTypeName": "Drive Through"})
+        entry = _make_entry(
+            "PENA", involves_player=True, details={"penaltyTypeName": "Drive Through"}
+        )
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "Drive Through" in msg
 
     def test_rival_penalty(self):
         agent = _make_agent()
-        entry = _make_entry("PENA", involves_player=False, details={"penaltyTypeName": "Corner Cutting", "time": 10})
+        entry = _make_entry(
+            "PENA", involves_player=False, details={"penaltyTypeName": "Corner Cutting", "time": 10}
+        )
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "Rival" in msg or "rival" in msg
@@ -363,8 +369,11 @@ class TestOVTK:
         ctx = self._ctx(player_id=0, current_pos=4)
         lb = self._lb(rival_idx=1, rival_name="Verstappen")
         agent = _make_agent(context_frame=ctx, leaderboard=lb)
-        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
-                 "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1}}
+        entry = {
+            **_make_entry("OVTK"),
+            "playerPitStatus": "none",
+            "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1},
+        }
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "gained" in msg.lower()
@@ -374,8 +383,11 @@ class TestOVTK:
         ctx = self._ctx(player_id=0, current_pos=6)
         lb = self._lb(rival_idx=1, rival_name="Hamilton")
         agent = _make_agent(context_frame=ctx, leaderboard=lb)
-        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
-                 "details": {"overtakingVehicleIdx": 1, "beingOvertakenVehicleIdx": 0}}
+        entry = {
+            **_make_entry("OVTK"),
+            "playerPitStatus": "none",
+            "details": {"overtakingVehicleIdx": 1, "beingOvertakenVehicleIdx": 0},
+        }
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is not None
         assert "lost" in msg.lower()
@@ -383,23 +395,36 @@ class TestOVTK:
     def test_pitting_suppressed(self):
         ctx = self._ctx(player_id=0)
         agent = _make_agent(context_frame=ctx)
-        entry = {**_make_entry("OVTK"), "playerPitStatus": "pitting",
-                 "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1}}
+        entry = {
+            **_make_entry("OVTK"),
+            "playerPitStatus": "pitting",
+            "details": {"overtakingVehicleIdx": 0, "beingOvertakenVehicleIdx": 1},
+        }
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is None
 
     def test_neither_slot_player_suppressed(self):
         ctx = self._ctx(player_id=0)
         agent = _make_agent(context_frame=ctx)
-        entry = {**_make_entry("OVTK"), "playerPitStatus": "none",
-                 "details": {"overtakingVehicleIdx": 3, "beingOvertakenVehicleIdx": 5}}
+        entry = {
+            **_make_entry("OVTK"),
+            "playerPitStatus": "none",
+            "details": {"overtakingVehicleIdx": 3, "beingOvertakenVehicleIdx": 5},
+        }
         msg = asyncio.run(build_callout_message(entry, agent, monitor=None))
         assert msg is None
 
 
 class TestLLAP:
-    def _ctx(self, pos=2, total=20, gap_front=1.5, gap_back=0.8,
-              front_driver="Hamilton", back_driver="Alonso"):
+    def _ctx(
+        self,
+        pos=2,
+        total=20,
+        gap_front=1.5,
+        gap_back=0.8,
+        front_driver="Hamilton",
+        back_driver="Alonso",
+    ):
         return {
             "context": {
                 "player": {
@@ -434,6 +459,7 @@ class TestLLAP:
 class TestCallMcpNoTool:
     def test_no_mcp_tool_returns_empty_dict(self):
         from src.voice_pipeline.callout_specs import _call_mcp
+
         agent = MagicMock()
         agent._mcp_tool = None
 
@@ -447,11 +473,13 @@ class TestCallMcpNoTool:
 class TestExtractDamageLevels:
     def test_missing_key_returns_empty(self):
         from src.voice_pipeline.callout_specs import _extract_damage_levels
+
         assert _extract_damage_levels({}) == {}
         assert _extract_damage_levels({"context": {}}) == {}
 
     def test_extracts_damage(self):
         from src.voice_pipeline.callout_specs import _extract_damage_levels
+
         ctx = {"context": {"player": {"car": {"damageByPart": {"frontWing": "medium"}}}}}
         result = _extract_damage_levels(ctx)
         assert result == {"frontWing": "medium"}
@@ -490,7 +518,9 @@ class TestGenericFallback:
         assert "[CALLOUT]" in msg
 
     def test_builder_exception_falls_back_to_generic(self):
-        from unittest.mock import patch, AsyncMock as AM
+        from unittest.mock import AsyncMock as AM
+        from unittest.mock import patch
+
         agent = _make_agent()
         entry = _make_entry("RDFL")
         with patch(

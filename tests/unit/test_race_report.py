@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 from src.mcp.functions.race_report import _fmt_ms, get_race_report
 
-
 # ── _fmt_ms ───────────────────────────────────────────────────────────────────
 
 
@@ -88,9 +87,7 @@ class TestGetRaceReportUnavailable:
         assert result["available"] is False
 
     def test_all_positions_zero_skipped(self):
-        cap = _make_capture(
-            final={"numCars": 1, "classificationData": [{"position": 0}]}
-        )
+        cap = _make_capture(final={"numCars": 1, "classificationData": [{"position": 0}]})
         result = get_race_report(cap)
         assert result["available"] is False
 
@@ -111,38 +108,50 @@ class TestGetRaceReportResults:
 
     def test_position_change_calculated(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(position=1, gridPosition=3)]}
+            final={
+                "numCars": 1,
+                "classificationData": [_classification_entry(position=1, gridPosition=3)],
+            }
         )
         result = get_race_report(cap)
         assert result["results"][0]["positionChange"] == 2  # 3 - 1
 
     def test_position_change_negative(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(position=5, gridPosition=2)]}
+            final={
+                "numCars": 1,
+                "classificationData": [_classification_entry(position=5, gridPosition=2)],
+            }
         )
         result = get_race_report(cap)
         assert result["results"][0]["positionChange"] == -3
 
     def test_is_player_flag(self):
-        cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry()]}
-        )
+        cap = _make_capture(final={"numCars": 1, "classificationData": [_classification_entry()]})
         cap.player_car_index = 0
         result = get_race_report(cap)
         assert result["results"][0]["isPlayer"] is True
 
     def test_best_lap_time_formatted(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(bestLapTimeInMS=83962)]}
+            final={
+                "numCars": 1,
+                "classificationData": [_classification_entry(bestLapTimeInMS=83962)],
+            }
         )
         result = get_race_report(cap)
         assert "23.962" in result["results"][0]["bestLapTime"]
 
     def test_tyre_compound_soft(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(
-                numTyreStints=1, tyreStintsVisual=[16], tyreStintsEndLaps=[30]
-            )]}
+            final={
+                "numCars": 1,
+                "classificationData": [
+                    _classification_entry(
+                        numTyreStints=1, tyreStintsVisual=[16], tyreStintsEndLaps=[30]
+                    )
+                ],
+            }
         )
         result = get_race_report(cap)
         assert result["results"][0]["tyreStints"][0]["compound"] == "Soft"
@@ -150,9 +159,14 @@ class TestGetRaceReportResults:
 
     def test_tyre_end_lap_255_becomes_none(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(
-                numTyreStints=1, tyreStintsVisual=[17], tyreStintsEndLaps=[255]
-            )]}
+            final={
+                "numCars": 1,
+                "classificationData": [
+                    _classification_entry(
+                        numTyreStints=1, tyreStintsVisual=[17], tyreStintsEndLaps=[255]
+                    )
+                ],
+            }
         )
         result = get_race_report(cap)
         # endLap=255 → None → _strip_nulls converts to 'unknown'
@@ -162,18 +176,28 @@ class TestGetRaceReportResults:
         compounds = {16: "Soft", 17: "Medium", 18: "Hard", 7: "Inter", 8: "Wet"}
         for code, name in compounds.items():
             cap = _make_capture(
-                final={"numCars": 1, "classificationData": [_classification_entry(
-                    numTyreStints=1, tyreStintsVisual=[code], tyreStintsEndLaps=[50]
-                )]}
+                final={
+                    "numCars": 1,
+                    "classificationData": [
+                        _classification_entry(
+                            numTyreStints=1, tyreStintsVisual=[code], tyreStintsEndLaps=[50]
+                        )
+                    ],
+                }
             )
             result = get_race_report(cap)
             assert result["results"][0]["tyreStints"][0]["compound"] == name
 
     def test_unknown_compound_uses_hash_prefix(self):
         cap = _make_capture(
-            final={"numCars": 1, "classificationData": [_classification_entry(
-                numTyreStints=1, tyreStintsVisual=[99], tyreStintsEndLaps=[50]
-            )]}
+            final={
+                "numCars": 1,
+                "classificationData": [
+                    _classification_entry(
+                        numTyreStints=1, tyreStintsVisual=[99], tyreStintsEndLaps=[50]
+                    )
+                ],
+            }
         )
         result = get_race_report(cap)
         assert result["results"][0]["tyreStints"][0]["compound"].startswith("#")
@@ -183,8 +207,20 @@ class TestGetRaceReportResults:
             final={
                 "numCars": 2,
                 "classificationData": [
-                    _classification_entry(position=2, gridPosition=2, numTyreStints=0, tyreStintsVisual=[], tyreStintsEndLaps=[]),
-                    _classification_entry(position=1, gridPosition=1, numTyreStints=0, tyreStintsVisual=[], tyreStintsEndLaps=[]),
+                    _classification_entry(
+                        position=2,
+                        gridPosition=2,
+                        numTyreStints=0,
+                        tyreStintsVisual=[],
+                        tyreStintsEndLaps=[],
+                    ),
+                    _classification_entry(
+                        position=1,
+                        gridPosition=1,
+                        numTyreStints=0,
+                        tyreStintsVisual=[],
+                        tyreStintsEndLaps=[],
+                    ),
                 ],
             }
         )
@@ -210,21 +246,45 @@ class TestGetRaceReportResults:
 
 class TestGetRaceReportNotableEvents:
     def test_ftlp_included(self):
-        events = [{"code": "FTLP", "eventName": "Fastest Lap", "time": "12:00", "involvesPlayer": True, "details": {}}]
+        events = [
+            {
+                "code": "FTLP",
+                "eventName": "Fastest Lap",
+                "time": "12:00",
+                "involvesPlayer": True,
+                "details": {},
+            }
+        ]
         cap = _make_capture(events=events)
         result = get_race_report(cap)
         codes = [e["code"] for e in (result.get("notableEvents") or [])]
         assert "FTLP" in codes
 
     def test_pena_included(self):
-        events = [{"code": "PENA", "eventName": "Penalty", "time": "12:00", "involvesPlayer": False, "details": {}}]
+        events = [
+            {
+                "code": "PENA",
+                "eventName": "Penalty",
+                "time": "12:00",
+                "involvesPlayer": False,
+                "details": {},
+            }
+        ]
         cap = _make_capture(events=events)
         result = get_race_report(cap)
         codes = [e["code"] for e in (result.get("notableEvents") or [])]
         assert "PENA" in codes
 
     def test_coll_excluded(self):
-        events = [{"code": "COLL", "eventName": "Collision", "time": "12:00", "involvesPlayer": False, "details": {}}]
+        events = [
+            {
+                "code": "COLL",
+                "eventName": "Collision",
+                "time": "12:00",
+                "involvesPlayer": False,
+                "details": {},
+            }
+        ]
         cap = _make_capture(events=events)
         result = get_race_report(cap)
         notable = result.get("notableEvents")

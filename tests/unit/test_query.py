@@ -11,7 +11,6 @@ import time
 from src.live_data_engine.capture import F1TelemetryCapture
 from src.live_data_engine.query import RaceStateView
 
-
 # ── minimal capture factory ───────────────────────────────────────────────────
 
 
@@ -330,8 +329,15 @@ class TestGetNumRemainingLaps:
 
 
 class TestGapMethods:
-    def _cap_with_two_cars(self, player_pos, rival_pos, player_dist, rival_dist,
-                            player_speed_kph=100, rival_speed_kph=100):
+    def _cap_with_two_cars(
+        self,
+        player_pos,
+        rival_pos,
+        player_dist,
+        rival_dist,
+        player_speed_kph=100,
+        rival_speed_kph=100,
+    ):
         laps = [
             {"carPosition": player_pos, "totalDistance": player_dist, "currentLapNum": 1},
             {"carPosition": rival_pos, "totalDistance": rival_dist, "currentLapNum": 1},
@@ -365,8 +371,10 @@ class TestGapMethods:
 
     def test_gap_to_car_returns_gap_data(self):
         cap = self._cap_with_two_cars(
-            player_pos=2, rival_pos=1,
-            player_dist=1000, rival_dist=1100,
+            player_pos=2,
+            rival_pos=1,
+            player_dist=1000,
+            rival_dist=1100,
         )
         view = RaceStateView(cap)
         result = view._gap_to_car(1)
@@ -377,9 +385,12 @@ class TestGapMethods:
     def test_gap_seconds_implausible_returns_none(self):
         # Gap > 180s in seconds is discarded
         cap = self._cap_with_two_cars(
-            player_pos=2, rival_pos=1,
-            player_dist=0, rival_dist=999999,
-            player_speed_kph=1, rival_speed_kph=1,
+            player_pos=2,
+            rival_pos=1,
+            player_dist=0,
+            rival_dist=999999,
+            player_speed_kph=1,
+            rival_speed_kph=1,
         )
         result = RaceStateView(cap)._gap_to_car(1)
         assert result is not None
