@@ -5,5 +5,5 @@ python-dotenv>=1.2.2
 deepgram-sdk>=7.4.0
 requests>=2.34.2
 openai>=2.44.0
-agent-framework>=1.2.2,<2
+agent-framework>=1.10.0,<2
 numpy>=1.26
