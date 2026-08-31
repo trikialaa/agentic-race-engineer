@@ -11,7 +11,7 @@ assistant that responds to your questions in real time, exactly like a real race
 
 ---
 
-## Demo
+## Video Demo
 
 [![Demo video](https://img.youtube.com/vi/BVU3ri6X4aI/maxresdefault.jpg)](https://youtu.be/BVU3ri6X4aI)
 
