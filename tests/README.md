@@ -1,6 +1,6 @@
 # Test suite
 
-136 tests, ~5 s, no API keys, no game, no subprocess.
+341 tests, ~6 s, no API keys, no game, no subprocess.
 
 ## Structure
 

@@ -33,7 +33,7 @@ TOOL_DESCRIPTIONS = {
     "get_leaderboard": (
         "Full field view: every car's race position, gap to leader, tyre compound and age, pit stop count, "
         "and penalties. Call this whenever the driver asks about any specific driver who is NOT shown as "
-        "frontDriver or backDriver in the context frame — including the race leader, the driver behind them, "
+        "aheadDriver or behindDriver in the context frame — including the race leader, the driver behind them, "
         "or any named driver you cannot locate in the immediate gap data. "
         "Also use for comparing strategies across multiple drivers or questions about the wider field."
     ),

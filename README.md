@@ -11,6 +11,25 @@ assistant that responds to your questions in real time, exactly like a real race
 
 ---
 
+## Engineering highlights
+
+- **Deterministic test suite, zero live dependencies** — 341 tests run in ~6 s against a
+  parity-gated real-race fixture: no game, no API keys, no sockets, no mocked telemetry.
+  Golden-snapshot + invariant tests cover all 7 MCP tools; see [Design notes](#design-notes).
+- **LLM quality gated like a product surface, not an afterthought** — a separate eval harness
+  ([`evals/`](evals/)) runs 12 pinned scenarios through 5 programmatic scorers plus an optional
+  LLM-as-judge, with a dedicated `evals/compare.py` for A/B-testing model backends head-to-head.
+- **Typed, statically checked telemetry layer** — 16 binary packet decoders for the F1 25 UDP
+  protocol, enforced with mypy in CI across Python 3.11/3.12, ruff lint + format on every commit.
+- **Latency-first architecture** — `get_context_frame` is unconditionally injected into every LLM
+  turn (no tool round-trip before the model sees race state), keeping end-to-end voice response
+  under 1 s; see the [design rationale](#design-notes) for the full set of trade-offs.
+- **Autonomous, self-rate-limited proactive alerts** — `CalloutMonitor` fires unsolicited radio
+  calls on race events (safety car, position loss, penalties, fastest laps) with per-event
+  cooldowns and a global rate limit, independent of the request/response voice loop.
+
+---
+
 ## Demo
 
 *A demo GIF showing the overlay and a sample engineer conversation will go here.*
@@ -148,7 +167,7 @@ Press and hold the configured hotkey (or a steering wheel button) and speak. Rel
 ```bash
 make lint       # ruff check + format check
 make typecheck  # mypy (src/mcp/functions, src/udp_parser)
-make test       # pytest with coverage (136 tests, ~5 s, no API keys, no game)
+make test       # pytest with coverage (341 tests, ~6 s, no API keys, no game)
 
 pre-commit install   # install git hooks (ruff on every commit)
 ```

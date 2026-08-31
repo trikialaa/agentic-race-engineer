@@ -33,7 +33,7 @@ python -m src.mcp.server --transport http --port 20915
 ## Testing & Utilities
 
 ```bash
-# Run the full test suite (136 tests, ~5 s, no API keys, no game)
+# Run the full test suite (341 tests, ~6 s, no API keys, no game)
 pytest -v
 pytest --cov=src --cov-report=term-missing -v  # with coverage
 
@@ -126,7 +126,7 @@ F1 25 Game UDP (port 20777)
 
 ### Test suite (`tests/`)
 
-136 tests, ~5 s, no API keys, no game. See `tests/README.md` for full details.
+341 tests, ~6 s, no API keys, no game. See `tests/README.md` for full details.
 
 - **`tests/fixtures/race_catalunya_2025.bin`** — 3.14 MB committed fixture slice, validated against a 70 MB source via a parity gate at every race marker. Regenerate with `build_fixture.py`.
 - **`tests/helpers.py`** — `load_capture_to(frame)` loads the fixture in-process through the production decode path. `mask()` strips wall-clock fields before golden comparison.
