@@ -1,4 +1,4 @@
-# f1_radio
+# Agentic F1 Race Engineer
 
 **Virtual F1 Race Engineer** — pairs Codemasters F1 25 UDP telemetry with an AI-powered voice
 assistant that responds to your questions in real time, exactly like a real race engineer.
