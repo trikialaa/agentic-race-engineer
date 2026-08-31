@@ -75,11 +75,11 @@ Callout scenarios use the `callout` field instead of `driver`:
 Scenario(
     id="callout_safety_car",
     frame_name="green_steady",
-    callout="Safety Car",           # event description string
-    driver="",                      # unused
-    must_include=["box"],           # must instruct the driver to pit
-    must_not_include=["?"],         # callout contract: no questions
-    max_words=15,                   # tight brevity ceiling for one-sentence callouts
+    callout="Safety Car",  # event description string
+    driver="",  # unused
+    must_include=["box"],  # must instruct the driver to pit
+    must_not_include=["?"],  # callout contract: no questions
+    max_words=15,  # tight brevity ceiling for one-sentence callouts
 )
 ```
 
