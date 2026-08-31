@@ -20,17 +20,17 @@
       "team": "Williams",
       "position": {
         "current": 5,
-        "start": 12,
+        "grid": 12,
         "total": 20
       },
       "gap": {
-        "frontS": 1.09,
-        "backS": 0.5,
-        "frontDriver": {
+        "aheadS": 1.09,
+        "behindS": 0.5,
+        "aheadDriver": {
           "name": "VERSTAPPEN",
           "position": 4
         },
-        "backDriver": {
+        "behindDriver": {
           "name": "HAMILTON",
           "position": 6
         }
@@ -53,8 +53,8 @@
         },
         "fuel": {
           "status": "nominal",
-          "fuelLapsRange": 2.51,
-          "deltaLaps": -1.49
+          "fuelLapsRange": "unknown",
+          "deltaLaps": "unknown"
         },
         "ersPct": 99.7,
         "damageByPart": {

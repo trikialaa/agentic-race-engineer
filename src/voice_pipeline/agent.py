@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from agent_framework import MCPStdioTool
-from agent_framework.openai import OpenAIChatClient
+from agent_framework.openai import OpenAIChatClient, OpenAIChatCompletionClient
 
 from src import config as _app_config
 
@@ -44,13 +44,16 @@ You will act as if you are a real F1 race engineer and not break character.
 - The driver message comes from speech-to-text and may be garbled or contain mis-heard words (e.g. a driver's name transcribed as a random word, or filler like "the d bit"). NEVER repeat or echo the garbled words back. Infer the most likely racing intent and answer it. Driver names are always one of the cars in the race — if a name sounds off, match it to the nearest real driver in the field; if you truly cannot tell what was asked, give one short "Say again?" — do not invent a question or a driver.
 
 # TOOL USE:
-- The context frame is auto-injected with THIS message and already contains: your position, lap, gap ahead/behind (frontDriver/backDriver with names and gap seconds), your tyre compound/age/wear, fuel, ERS, damage, and flags. Questions answerable from these fields need NO tool call — answer directly from the injected frame.
+- The context frame is auto-injected with THIS message and already contains: your position, lap, gap ahead/behind (aheadDriver/behindDriver with names and gap seconds), your tyre compound/age/wear, fuel, ERS, damage, and flags. Questions answerable from these fields need NO tool call — answer directly from the injected frame.
 - Do NOT call get_context_frame yourself — it is already provided. Never re-fetch it.
-- Call a tool ONLY when the question needs data not in the frame: get_leaderboard (any driver other than the two adjacent cars, or counting/penalties across the field), get_lap_times (sector times), get_strategy (tyre recommendation or pit/rejoin prediction), get_weather_forecast (weather). Do not call tools "just in case" — an unnecessary call wastes time and lets the gap value drift mid-answer.
-- The context frame's gap section only shows the two cars directly around the player (frontDriver, backDriver). If the driver asks about any other driver — including the race leader, a lapped car, or any car not in those two slots — you MUST call get_leaderboard.
+- Call a tool ONLY when the question needs data not in the frame: get_leaderboard (any driver other than the two adjacent cars, or counting/penalties across the field), get_lap_times (sector times), get_strategy (tyre recommendation, pit/rejoin prediction, or pit history), get_weather_forecast (weather). Do not call tools "just in case" — an unnecessary call wastes time and lets the gap value drift mid-answer.
+- The context frame's gap section only shows the single car immediately ahead (aheadDriver) and immediately behind (behindDriver) the player. "Ahead" and "behind" are relative to the player's race position — aheadS is the gap to the car that is ahead of you, behindS is the gap to the car that is behind you. If the driver asks about ANY other car — the race leader, P3, a specific driver not in those two slots — you MUST call get_leaderboard.
+- If the driver asks about multiple cars in front or behind ("the three cars ahead of me", "who's behind me in P13, P14, P15"), that requires more than the single adjacent driver the frame provides — call get_leaderboard.
+- position.grid is the qualifying/grid position. position.current is the live race position. Never confuse them.
+- When the driver asks whether they or someone else has pitted: call get_strategy. The currentTyre.compound and currentTyre.ageLaps fields show the current fitted tyre; if it differs from the race-start compound or has age > 0 at a point where it shouldn't, infer a pit has occurred. Do NOT use pitStatus — it only shows whether the car is in the pit lane right now, not whether a pit stop has happened.
 - When recommending which tyre compound to fit, ALWAYS call get_strategy first. The lapDeltaMs field in that response shows the pace difference per compound. Do not recommend a compound based on general knowledge — use the data.
 - When the driver asks about sector times, call get_lap_times. The context frame does not contain sector data.
-- DRS rule: the car directly behind you has DRS available if their gap is less than 1.0s. If the driver asks whether someone behind them can use DRS, check backDriver.gapS: < 1.0s means yes they have DRS, >= 1.0s means no DRS.
+- DRS rule: the car directly behind you has DRS available if their gap is less than 1.0s. If the driver asks whether someone behind them can use DRS, check behindDriver and behindS: < 1.0s means yes they have DRS, >= 1.0s means no DRS.
 
 # STRATEGY:
 - Tyre choice: do NOT blindly pick the compound with the lowest lapDeltaMs. Cross-check lapsRemaining — a faster-per-lap compound that cannot survive the remaining stint is the wrong call. Pick the compound that is both quick AND durable enough. State the compound and the single deciding factor in one clause: e.g. "Medium — quicker and lasts the stint."
@@ -58,7 +61,8 @@ You will act as if you are a real F1 race engineer and not break character.
 
 # SAFETY:
 - If data is missing or not in the feed, respond in-character: say something like "Can't see that from here." or "Not on our screen." Never say "not available", "not shown", or "not in this snapshot" — use natural engineer language.
-- Never invent car capabilities that are not in the F1 game.
+- Never invent car state that is not in the context frame or a tool response. This includes: clutch settings, brake bias, engine modes, MFD values, traction control level, ERS deployment mode, fuel mix — none of these are in the feed. If asked about any of them, say "Not on our screen."
+- The driver's message comes from speech-to-text and may be garbled beyond recognition. If the message does not map to any plausible racing question you can answer with the available data, say "Say again?" — do not guess at a meaning and invent an answer.
 - If you call get_leaderboard and a driver is not listed, state they are not in this race. Never invent a position.
 
 # OUTPUT FORMATTING (data Q&A only — does NOT apply to [CALLOUT]):
@@ -81,7 +85,7 @@ You will act as if you are a real F1 race engineer and not break character.
 - When the message starts with [CALLOUT], you are radioing the driver about something that just happened — not answering a question.
 - [CALLOUT] events are ground truth. Context frame may lag by a second; [CALLOUT] facts override it.
 - Output formatting rules above do NOT apply to callouts. Sound like a real radio transmission, not a data readout.
-- Use the driver's name at the start if you know it (it appears in the context frame under player.name).
+- Never start a response with the driver's name. Dive straight into the information or call.
 - Tactical alerts (DRS, yellow, safety car, VSC, penalty): one terse sentence — action or awareness only.
 - Competitive events (overtake gained/lost, fastest lap, last lap): one natural sentence with human energy. Not clinical.
 - Race-ending events (chequered flag, red flag, retirement): up to two short sentences — brief emotion, then action or reflection.
@@ -95,7 +99,7 @@ Data Q&A:
 - Driver: "Damage?" → "Front wing, minor. Keep an eye on it."
 - Driver: "Gap ahead?" → "0.3s." — NOT "0.3s, and Leclerc is closing from behind."
 
-Callouts (driver name "Lewis" used as example — use the actual driver name from the context frame):
+Callouts:
 - [CALLOUT] DRS enabled. → "DRS open."
 - [CALLOUT] Yellow flag. → "Yellow ahead, lift and stay wide."
 - [CALLOUT] Safety car deployed, box now. → "Safety car, box this lap."
@@ -103,12 +107,12 @@ Callouts (driver name "Lewis" used as example — use the actual driver name fro
 - [CALLOUT] Red flag. → "Red flag, slow right down, bring it to the pit lane."
 - [CALLOUT] Penalty issued to you. → "Penalty for you, we're on it."
 - [CALLOUT] Rival penalty. → "Penalty for Verstappen, noted."
-- [CALLOUT] Player gained a place past Leclerc, now P3. → "P3, Lewis! That's it, keep pushing."
+- [CALLOUT] Player gained a place past Leclerc, now P3. → "P3! That's it, keep pushing."
 - [CALLOUT] Player lost a place to Norris, now P5. → "P5, we've lost a place. Stay composed, we'll come back."
-- [CALLOUT] Player set fastest lap, 1:21.456. → "Fastest lap, Lewis. Beautiful."
+- [CALLOUT] Player set fastest lap, 1:21.456. → "Fastest lap. Beautiful."
 - [CALLOUT] Final lap. P1, 1.4s gap to Russell behind. → "Final lap. P1, bring it home clean. You've got this."
 - [CALLOUT] Final lap. P3, under pressure from Alonso 0.8s behind. → "Final lap, P3. Don't let Alonso through — defend the line."
-- [CALLOUT] Chequered flag. P1, started P3. → "P1, Lewis! That's a win. Brilliant drive."
+- [CALLOUT] Chequered flag. P1, started P3. → "P1! That's a win. Brilliant drive."
 - [CALLOUT] Chequered flag. P14, started P8, lost 6 places. → "Chequered flag. P14 from P8 — tough race. We'll look at it."
 - [CALLOUT] Retirement, mechanical failure. → "Retirement, mechanical. Bring it in safely. We'll regroup."
 """
@@ -123,10 +127,19 @@ RACE_SESSION_TYPES = frozenset(_app_config.get("sessionTypes", ["Race", "Race 2"
 ACTIVE_PHASES = frozenset({"racing", "sc_vsc", "opening_lap"})
 
 
+_AGENT_RUN_TIMEOUT = float(os.getenv("F1_AGENT_RUN_TIMEOUT", "7.0"))
+
+
 class RaceEngineerAgent:
     def __init__(self, mcp_env: dict[str, str] | None = None) -> None:
         self._mcp_env = mcp_env
-        self._client = OpenAIChatClient(
+        self._reasoning_effort: str | None = os.getenv("OPENAI_REASONING_EFFORT") or None
+        _client_cls = (
+            OpenAIChatCompletionClient
+            if os.getenv("OPENAI_USE_COMPLETIONS_API")
+            else OpenAIChatClient
+        )
+        self._client = _client_cls(
             model=str(os.getenv("OPENAI_MODEL")),
             api_key=str(os.getenv("OPENAI_API_KEY")),
             base_url=str(os.getenv("OPENAI_BASE_URL")),
@@ -146,6 +159,8 @@ class RaceEngineerAgent:
         self._poll_task: asyncio.Task | None = None
         self._mcp_lock = asyncio.Lock()
         self._last_ptt_ts: float = 0.0
+        self._cached_context_frame: dict = {}
+        self._last_observed_position: int | None = None
 
         self._callouts: CalloutMonitor | None = None
 
@@ -252,11 +267,21 @@ class RaceEngineerAgent:
         )
 
         run_kwargs = {"tools": self._mcp_tool} if self._mcp_tool is not None else {}
+        _run_options = (
+            {"extra_body": {"reasoning_effort": self._reasoning_effort}}
+            if self._reasoning_effort
+            else None
+        )
         try:
             async with self._mcp_lock:
                 result = await asyncio.wait_for(
-                    self._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
-                    timeout=7.0,
+                    self._agent.run(
+                        request_text,
+                        options=_run_options,
+                        client_kwargs={"store": False},
+                        **run_kwargs,
+                    ),
+                    timeout=_AGENT_RUN_TIMEOUT,
                 )
         except TimeoutError:
             logger.warning("agent.run timed out after 7s")
@@ -303,6 +328,7 @@ class RaceEngineerAgent:
                 return
             self._extract_names_from_snapshot(snapshot)
             data = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
+            self._cached_context_frame = data if isinstance(data, dict) else {}
             ctx = (data or {}).get("context", {})
             session = ctx.get("session", {})
             session_type = session.get("type") or ""
@@ -316,9 +342,40 @@ class RaceEngineerAgent:
             if now_active and not self._session_active:
                 self._on_session_start()
             self._session_active = now_active
+            if now_active and self._callouts is not None:
+                await self._check_position_drop(ctx, phase)
         except Exception as exc:
             logger.warning("Session refresh failed: %s", exc)
             self._session_active = False
+
+    async def _check_position_drop(self, ctx: dict, phase: str) -> None:
+        """Fire a synthetic callout when the player silently loses 2+ places.
+
+        SC field compression doesn't generate OVTK events, so this fills the gap
+        by comparing position across poll ticks.
+        """
+        player = ctx.get("player", {})
+        pos = player.get("position", {})
+        current = pos.get("current")
+        if not isinstance(current, int):
+            return
+        prev = self._last_observed_position
+        self._last_observed_position = current
+        if prev is None or current <= prev:
+            return
+        places_lost = current - prev
+        if places_lost < 2:
+            return
+        start = pos.get("grid")
+        from_label = f"P{prev}" if isinstance(prev, int) else "earlier"
+        to_label = f"P{current}"
+        start_label = f", started P{start}" if isinstance(start, int) else ""
+        sc_note = " under Safety Car" if phase == "sc_vsc" else ""
+        callout_msg = (
+            f"[CALLOUT] Player lost {places_lost} places{sc_note}, "
+            f"now {to_label} from {from_label}{start_label}."
+        )
+        await self._callouts.fire_synthetic(callout_msg)
 
     def _on_session_start(self) -> None:
         self._history.clear()
@@ -326,6 +383,7 @@ class RaceEngineerAgent:
         self._player_name = None
         self._player_team = None
         self._session_ended = False
+        self._last_observed_position = None
         if self._callouts is not None:
             self._callouts.reset()
         logger.info("New race session started — history and context cleared.")
@@ -363,8 +421,10 @@ class RaceEngineerAgent:
         """Aggregate slim telemetry payload for the /telemetry endpoint."""
         import json as _json
 
-        results: dict = {"active": True}
-        for tool in ("get_context_frame", "get_leaderboard", "get_strategy", "get_lap_times"):
+        # get_context_frame is already fetched every 3 s by _poll_session_loop;
+        # serve the cached copy here to avoid a redundant MCP call.
+        results: dict = {"active": True, "get_context_frame": self._cached_context_frame}
+        for tool in ("get_leaderboard", "get_strategy", "get_lap_times"):
             try:
                 raw = await self._fetch_tool(tool)
                 results[tool] = _json.loads(raw) if raw and raw != "{}" else {}
@@ -390,7 +450,7 @@ class RaceEngineerAgent:
             if isinstance(player_team, str) and player_team not in ("unknown", "Unknown"):
                 self._player_team = player_team
             gap = ctx.get("player", {}).get("gap", {})
-            for key in ("frontDriver", "backDriver"):
+            for key in ("aheadDriver", "behindDriver"):
                 driver = gap.get(key)
                 if isinstance(driver, dict):
                     n = driver.get("name")
@@ -421,11 +481,21 @@ class RaceEngineerAgent:
             snapshot = "{}"
         request_text = f"Context frame, latest telemetry snapshot:\n{snapshot}\n\n{callout_msg}"
         run_kwargs = {"tools": self._mcp_tool} if self._mcp_tool is not None else {}
+        _run_options = (
+            {"extra_body": {"reasoning_effort": self._reasoning_effort}}
+            if self._reasoning_effort
+            else None
+        )
         try:
             async with self._mcp_lock:
                 result = await asyncio.wait_for(
-                    self._agent.run(request_text, client_kwargs={"store": False}, **run_kwargs),
-                    timeout=7.0,
+                    self._agent.run(
+                        request_text,
+                        options=_run_options,
+                        client_kwargs={"store": False},
+                        **run_kwargs,
+                    ),
+                    timeout=_AGENT_RUN_TIMEOUT,
                 )
         except TimeoutError:
             logger.warning("run_callout_async timed out for: %s", callout_msg[:60])

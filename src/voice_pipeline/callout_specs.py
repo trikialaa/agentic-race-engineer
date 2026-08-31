@@ -70,7 +70,7 @@ async def _build_chqf(
 
     position_block = ctx.get("context", {}).get("player", {}).get("position", {})
     current = position_block.get("current")
-    start = position_block.get("start")
+    start = position_block.get("grid")
 
     pos_facts: list[str] = []
     diff: int | None = None
@@ -277,10 +277,10 @@ async def _build_llap(
     player = ctx.get("context", {}).get("player", {}) or {}
     pos = player.get("position", {}).get("current")
     total = player.get("position", {}).get("total")
-    gap_front = player.get("gap", {}).get("frontS")
-    gap_back = player.get("gap", {}).get("backS")
-    front_driver = (player.get("gap", {}).get("frontDriver") or {}).get("name")
-    back_driver = (player.get("gap", {}).get("backDriver") or {}).get("name")
+    gap_front = player.get("gap", {}).get("aheadS")
+    gap_back = player.get("gap", {}).get("behindS")
+    front_driver = (player.get("gap", {}).get("aheadDriver") or {}).get("name")
+    back_driver = (player.get("gap", {}).get("behindDriver") or {}).get("name")
 
     facts: list[str] = []
     if isinstance(pos, int):

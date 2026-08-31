@@ -117,6 +117,25 @@ class CalloutMonitor:
             await self._fire(entry, now)
             break  # one callout per poll cycle
 
+    async def fire_synthetic(self, callout_msg: str) -> None:
+        """Fire a callout that was generated internally (not from a game event)."""
+        now = time.time()
+        if now - self._last_callout_ts < _GLOBAL_RATE_LIMIT_S:
+            return
+        self._last_callout_ts = now
+        reply_raw = await self._agent.run_callout_async(callout_msg)
+        if not reply_raw:
+            return
+        self._queue.put(
+            {
+                "type": "callout",
+                "engineer_reply": sanitize_for_tts(reply_raw),
+                "display_reply": reply_raw,
+                "playerTeam": self._agent.player_team or "",
+            }
+        )
+        logger.info("Synthetic callout fired → %s", reply_raw[:80])
+
     async def _fire(self, entry: dict, now: float) -> None:
         agent = self._agent
         assert agent._agent is not None

@@ -756,8 +756,8 @@ const updateReadout = (snap) => {
   setReadout("ro-lap", lap != null && tot != null ? `${lap}/${tot}` : lap ?? "—");
 
   setReadout("ro-last-lap", fmtSeconds(pace.lastLapS));
-  setReadout("ro-gap-ahead",  fmtGap(gap.frontS));
-  setReadout("ro-gap-behind", fmtGap(gap.backS));
+  setReadout("ro-gap-ahead",  fmtGap(gap.aheadS));
+  setReadout("ro-gap-behind", fmtGap(gap.behindS));
 
   const compound = car.tyre?.compound ?? strat.currentTyre?.compound ?? "—";
   const age      = car.tyre?.ageLaps  ?? strat.currentTyre?.ageLaps;
@@ -772,9 +772,10 @@ const updateReadout = (snap) => {
 
   const flag = rc.flag;
   const sc   = rc.safetyCar;
-  const flagDisplay = (sc && sc !== "none") ? sc.toUpperCase()
-    : (flag && flag !== "none") ? flag.toUpperCase()
-    : "—";
+  const scLabel = sc === "full_safety_car" ? "SC"
+    : sc === "virtual_safety_car" ? "VSC"
+    : null;
+  const flagDisplay = scLabel ?? ((flag && flag !== "none") ? flag.toUpperCase() : "—");
   setReadout("ro-flag", flagDisplay);
 };
 
@@ -826,7 +827,7 @@ const fetchTelemetry = async () => {
     if (lapNum && position) updatePositionChart(lapNum, position);
 
     // Gap chart (rolling)
-    updateGapChart(gap.frontS ?? null, gap.backS ?? null);
+    updateGapChart(gap.aheadS ?? null, gap.behindS ?? null);
 
     // Tyre wear chart (rolling, resets on stint change)
     const compound = car.tyre?.compound ?? strat.currentTyre?.compound;
@@ -1163,18 +1164,26 @@ const renderReport = (data) => {
   }
 };
 
+let reportFetchInProgress = false;
 const fetchAndRenderReport = async (attempt = 0) => {
+  if (attempt === 0) {
+    if (reportFetchInProgress) return;
+    reportFetchInProgress = true;
+  }
   try {
     const resp = await fetch("/race-report");
-    if (!resp.ok) return;
+    if (!resp.ok) { reportFetchInProgress = false; return; }
     const data = await resp.json();
     if (data?.available) {
       renderReport(data);
+      reportFetchInProgress = false;
     } else if (attempt < 5) {
       // Final classification packet may not have arrived yet — retry with backoff
       setTimeout(() => fetchAndRenderReport(attempt + 1), 3000 * (attempt + 1));
+    } else {
+      reportFetchInProgress = false;
     }
-  } catch {}
+  } catch { reportFetchInProgress = false; }
 };
 
 // ── Init ──────────────────────────────────────────────────────

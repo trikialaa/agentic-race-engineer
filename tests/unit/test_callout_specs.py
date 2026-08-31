@@ -72,7 +72,7 @@ class TestCHQF:
         return {
             "context": {
                 "player": {
-                    "position": {"current": current, "start": start, "total": total},
+                    "position": {"current": current, "grid": start, "total": total},
                     "car": {},
                 }
             }
@@ -430,10 +430,10 @@ class TestLLAP:
                 "player": {
                     "position": {"current": pos, "total": total},
                     "gap": {
-                        "frontS": gap_front,
-                        "backS": gap_back,
-                        "frontDriver": {"name": front_driver},
-                        "backDriver": {"name": back_driver},
+                        "aheadS": gap_front,
+                        "behindS": gap_back,
+                        "aheadDriver": {"name": front_driver},
+                        "behindDriver": {"name": back_driver},
                     },
                 }
             }

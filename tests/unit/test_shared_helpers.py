@@ -132,10 +132,10 @@ class TestNormalizeSafetyCar:
     @pytest.mark.parametrize(
         "inp,expected",
         [
-            ("Safety Car", "sc"),
-            ("Full Safety Car", "sc"),
-            ("Virtual Safety Car", "vsc"),
-            ("VSC", "vsc"),
+            ("Safety Car", "full_safety_car"),
+            ("Full Safety Car", "full_safety_car"),
+            ("Virtual Safety Car", "virtual_safety_car"),
+            ("VSC", "virtual_safety_car"),
             ("No Safety Car", "none"),
             ("none", "none"),
             ("", "none"),

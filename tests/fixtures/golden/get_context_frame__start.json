@@ -20,17 +20,17 @@
       "team": "Williams",
       "position": {
         "current": 12,
-        "start": 12,
+        "grid": 12,
         "total": 20
       },
       "gap": {
-        "frontS": 80.55,
-        "backS": 80.01,
-        "frontDriver": {
+        "aheadS": 80.55,
+        "behindS": 80.01,
+        "aheadDriver": {
           "name": "LAWSON",
           "position": 11
         },
-        "backDriver": {
+        "behindDriver": {
           "name": "ALBON",
           "position": 13
         }
@@ -53,8 +53,8 @@
         },
         "fuel": {
           "status": "nominal",
-          "fuelLapsRange": 2.59,
-          "deltaLaps": -1.41
+          "fuelLapsRange": "unknown",
+          "deltaLaps": "unknown"
         },
         "ersPct": 100.0,
         "damageByPart": {

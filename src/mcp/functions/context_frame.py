@@ -63,7 +63,7 @@ def _damage_by_part_levels(damage: dict[str, Any]) -> dict[str, str]:
 def _session_phase(mode: str, safety_car: str, lap: int | None, laps_remaining: int | None) -> str:
     if mode != "in_game":
         return "not_racing"
-    if safety_car in ("sc", "vsc"):
+    if safety_car in ("full_safety_car", "virtual_safety_car"):
         return "sc_vsc"
     if isinstance(laps_remaining, int) and laps_remaining < 0:
         return "finishing"
@@ -198,10 +198,20 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
     except Exception:
         start_position = None
     fuel_laps_raw = _round(fuel.get("fuelRemainingLaps"), 2)
-    fuel_laps_out = fuel_laps_raw
+    current_lap_num = lap if isinstance(lap, int) else None
+    # The game's fuel model needs at least one completed lap to calibrate; readings
+    # on lap 1 are routinely off by 5–10 laps and would alarm the driver falsely.
+    _fuel_unreliable = (
+        isinstance(current_lap_num, int)
+        and current_lap_num <= 1
+        and isinstance(fuel_laps_raw, float)
+        and isinstance(laps_remaining, int)
+        and (fuel_laps_raw - laps_remaining) < -(laps_remaining * 0.3)
+    )
+    fuel_laps_out = None if _fuel_unreliable else fuel_laps_raw
     fuel_delta_laps = (
         _round((fuel_laps_raw - laps_remaining), 2)
-        if fuel_laps_raw is not None and laps_remaining is not None
+        if fuel_laps_raw is not None and laps_remaining is not None and not _fuel_unreliable
         else None
     )
     player_position = player.get("position")
@@ -260,19 +270,19 @@ def get_context_frame(capture: F1TelemetryCapture) -> dict[str, Any]:
                 ),
                 "position": {
                     "current": player_position,
-                    "start": start_position,
+                    "grid": start_position,
                     "total": total_positions,
                 },
                 "gap": {
-                    "frontS": gap_front_s,
-                    "backS": gap_back_s,
-                    "frontDriver": {
+                    "aheadS": gap_front_s,
+                    "behindS": gap_back_s,
+                    "aheadDriver": {
                         "name": (front_driver or {}).get("driverName"),
                         "position": (front_driver or {}).get("position"),
                     }
                     if front_driver
                     else None,
-                    "backDriver": {
+                    "behindDriver": {
                         "name": (back_driver or {}).get("driverName"),
                         "position": (back_driver or {}).get("position"),
                     }

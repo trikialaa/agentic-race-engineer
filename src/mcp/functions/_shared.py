@@ -95,9 +95,9 @@ def _normalize_safety_car(value: Any) -> str:
         return "none"
     text = value.strip().lower()
     if text in ("vsc", "virtual safety car"):
-        return "vsc"
+        return "virtual_safety_car"
     if "safety car" in text and "no " not in text:
-        return "sc"
+        return "full_safety_car"
     return "none"
 
 

@@ -20,17 +20,17 @@
       "team": "Williams",
       "position": {
         "current": 17,
-        "start": 12,
+        "grid": 12,
         "total": 20
       },
       "gap": {
-        "frontS": 0.08,
-        "backS": 0.65,
-        "frontDriver": {
+        "aheadS": 0.08,
+        "behindS": 0.65,
+        "aheadDriver": {
           "name": "GASLY",
           "position": 16
         },
-        "backDriver": {
+        "behindDriver": {
           "name": "BORTOLETO",
           "position": 18
         }
