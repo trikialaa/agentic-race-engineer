@@ -11,24 +11,9 @@ assistant that responds to your questions in real time, exactly like a real race
 
 ---
 
-## Engineering highlights
-
-- 341 tests, ~6 s, no game, no API keys, no mocks. Golden-snapshot and invariant tests
-  for all 7 MCP tools, run against a fixture parity-gated against a real 70 MB race capture.
-- A separate eval harness (`evals/`) scores the agent itself: 12 pinned scenarios, 5
-  programmatic scorers, an optional LLM-as-judge, and `evals/compare.py` for A/B testing
-  model backends head to head.
-- 16 UDP packet decoders, fully typed and mypy-checked in CI across Python 3.11 and 3.12.
-- `get_context_frame` is injected into every LLM turn unconditionally instead of fetched
-  on demand, so voice replies land in under a second. See [Design notes](#design-notes).
-- `CalloutMonitor` runs independently of the request/response loop, firing rate-limited
-  proactive radio calls on race events: safety car, position loss, penalties, fastest laps.
-
----
-
 ## Demo
 
-*A demo GIF showing the overlay and a sample engineer conversation will go here.*
+[![Demo video](https://img.youtube.com/vi/BVU3ri6X4aI/maxresdefault.jpg)](https://youtu.be/BVU3ri6X4aI)
 
 Sample exchange:
 > **You:** "Bono, what's my tyre deg looking like?"
@@ -192,6 +177,56 @@ See [docs/evals.md](docs/evals.md) for scenario definitions, scorer design, and 
 
 ---
 
+## Cost & latency
+
+Currently running `gpt-5.4-nano` (OpenAI) for the agent LLM, Deepgram `nova-3` for STT
+(batch, not streaming), and Inworld `tts-2` for voice output.
+
+**Latency**, measured from 57 real agent runs in `evals/results/` (LLM + any MCP tool call,
+context frame already injected):
+
+| | Time |
+|---|---|
+| Median | 1.36 s |
+| Mean | 1.46 s |
+| P90 | 2.3 s |
+
+Add STT and TTS on top of this for true mic-to-speaker latency.
+
+**Cost per 5-lap session**, estimated rather than metered. Assumes 5 radio exchanges per
+lap, 25 total, 20 of them spoken (STT). Sized from the real system prompt (~2.5k tokens),
+a real `get_context_frame` payload (~265 tokens), and the average reply length from eval
+runs (38.8 characters):
+
+| Component | Rate | Est. per session |
+|---|---|---|
+| LLM (`gpt-5.4-nano`) | $0.20 / $1.25 per 1M in/out tokens | ~$0.015 |
+| STT (Deepgram `nova-3`, batch) | $0.0043 / min | ~$0.004 |
+| TTS (Inworld `tts-2`) | $35 / 1M characters | ~$0.034 |
+| **Total** | | **~$0.05** |
+
+TTS is the biggest line item at Inworld's current rate. The terse reply style the `brevity`
+scorer enforces is a real cost lever, not just UX. The system prompt is static per turn and
+not currently cached, so prompt caching would cut the LLM line further. `evals/compare.py`
+can A/B a cheaper backend (Groq, Cerebras) against quality, not just cost.
+
+---
+
+## Engineering highlights
+
+- 341 tests, ~6 s, no game, no API keys, no mocks. Golden-snapshot and invariant tests
+  for all 7 MCP tools, run against a fixture parity-gated against a real 70 MB race capture.
+- A separate eval harness (`evals/`) scores the agent itself: 12 pinned scenarios, 5
+  programmatic scorers, an optional LLM-as-judge, and `evals/compare.py` for A/B testing
+  model backends head to head.
+- 16 UDP packet decoders, fully typed and mypy-checked in CI across Python 3.11 and 3.12.
+- `get_context_frame` is injected into every LLM turn unconditionally instead of fetched
+  on demand, so voice replies land in under a second. See [Design notes](#design-notes).
+- `CalloutMonitor` runs independently of the request/response loop, firing rate-limited
+  proactive radio calls on race events: safety car, position loss, penalties, fastest laps.
+
+---
+
 ## Design notes
 
 **Why MCP as the tool boundary?**
@@ -252,23 +287,6 @@ docs/
   f1_telemetry_docs.md  # F1 25 UDP specification (reference)
   evals.md              # Eval harness design, scorer definitions, CI integration
 ```
-
----
-
-## Environment variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `F1_UDP_IP` | `0.0.0.0` | UDP bind address |
-| `F1_UDP_PORT` | `20777` | UDP listen port |
-| `F1_MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
-| `F1_MCP_HOST` | `127.0.0.1` | MCP HTTP host |
-| `F1_MCP_PORT` | `20915` | MCP HTTP port |
-| `F1_BUFFER_CAR_TELEMETRY` | `120` | Ringbuffer depth per telemetry type |
-| `F1_MCP_FIXTURE` | — | Path to a `.bin` fixture; replaces live UDP (used by evals) |
-| `F1_MCP_FIXTURE_FRAME` | — | Frame index to stop replay at (used with `F1_MCP_FIXTURE`) |
-| `F1_MCP_TOOL_LOG` | — | Path to append `{"tool": name, "ts": ...}` lines on every tool call |
-| `F1_RECORD_DIR` | — | Active recording directory; set automatically by `--record` |
 
 ---
 
