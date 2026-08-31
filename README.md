@@ -3,7 +3,7 @@
 **Virtual F1 Race Engineer** — pairs Codemasters F1 25 UDP telemetry with an AI-powered voice
 assistant that responds to your questions in real time, exactly like a real race engineer.
 
-[![CI](https://github.com/trikialaa/f1_radaio/actions/workflows/tests.yml/badge.svg)](https://github.com/trikialaa/f1_radaio/actions/workflows/tests.yml)
+[![CI](https://github.com/trikialaa/agentic-race-engineer/actions/workflows/tests.yml/badge.svg)](https://github.com/trikialaa/agentic-race-engineer/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -127,7 +127,7 @@ each query and avoid redundant calls when `get_context_frame` already has the an
 ### Install
 
 ```bash
-git clone https://github.com/trikialaa/f1_radaio.git && cd f1_radaio
+git clone https://github.com/trikialaa/agentic-race-engineer.git && cd agentic-race-engineer
 
 pip install -r requirements.txt -r requirements-dev.txt
 npm ci

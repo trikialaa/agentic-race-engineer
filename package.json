@@ -1,5 +1,5 @@
 {
-  "name": "f1-radaio",
+  "name": "agentic-race-engineer",
   "version": "0.1.0",
   "description": "Electron shell for the F1 radio voice assistant",
   "main": "src/ui/electron/main.js",
