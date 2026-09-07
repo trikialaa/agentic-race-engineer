@@ -141,7 +141,7 @@ On-demand LLM quality gate — **not** part of the normal `pytest` run. Requires
 - **`evals/scenarios.py`** — 12 scenarios, each pinned to a fixture frame. Fields: `driver` (spoken question), `expect_tools`, `must_include`, `must_not_include`, `rubric`.
 - **`evals/scorers.py`** — 5 programmatic scorers: `brevity`, `format_check`, `no_forbidden_phrase`, `grounding`, `tool_selection`. Optional `judge` scorer uses the LLM to rate against `rubric`.
 - **`evals/runner.py`** — CLI that seeds the MCP subprocess via `F1_MCP_FIXTURE*` env vars, drives `RaceEngineerAgent.reply_async`, reads tool logs, and runs scorers. Each scenario spawns and tears down its own agent + MCP subprocess.
-- **`.github/workflows/evals.yml`** — manual dispatch (`workflow_dispatch`) + weekly schedule. Never triggers on push/PR. Uploads the JSON report as a build artifact.
+- **`.github/workflows/evals.yml`** — manual dispatch only (`workflow_dispatch`). Never triggers on push/PR or a schedule. Uploads the JSON report as a build artifact.
 
 ## Environment Variables
 

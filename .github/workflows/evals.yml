@@ -11,9 +11,6 @@ on:
         description: "Enable LLM-as-judge (true/false)"
         default: "false"
         required: false
-  schedule:
-    # Weekly on Monday at 03:00 UTC
-    - cron: "0 3 * * 1"
 
 # Cancel superseded runs on the same ref
 concurrency:
